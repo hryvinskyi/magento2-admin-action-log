@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <hryvinskyi_admin_action_log>
+            <admin>
+                <enabled>1</enabled>
+                <log_get_requests>0</log_get_requests>
+                <ignored_routes>mui/*,*/*/validate*,adminhtml/index/index,adminhtml/system_config/state,adminhtml/notification/*,adminhtml/system_message/*,adminhtml/index/globalSearch,adminhtml/dashboard/*,adminhtml/ui_bookmark/*,cms/wysiwyg_images/*,hryvinskyi_activitylog/dashboard/*</ignored_routes>
+                <retention_days>90</retention_days>
+            </admin>
+            <entity>
+                <enabled>1</enabled>
+                <actor_types>admin,integration,cli,cron,anonymous</actor_types>
+                <default_retention_days>90</default_retention_days>
+            </entity>
+        </hryvinskyi_admin_action_log>
+    </default>
+</config>

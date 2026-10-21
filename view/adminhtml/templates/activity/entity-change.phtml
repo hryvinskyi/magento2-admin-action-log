@@ -1,0 +1,138 @@
+<?php
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+declare(strict_types=1);
+
+use Hryvinskyi\AdminActionLog\ViewModel\EntityChangePanel;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/**
+ * @var Template $block
+ * @var Escaper $escaper
+ */
+
+$panel = $block->getData('panel');
+if (!$panel instanceof EntityChangePanel) {
+    return;
+}
+$change = $panel->change();
+?>
+<section class="activity-section admin-action-panel"
+         data-mage-init='{"Hryvinskyi_AdminActionLog/js/view/entity-diff": {}}'>
+    <div class="activity-section__header">
+        <span class="activity-section__title"><?= $escaper->escapeHtml(__('Entity change')) ?></span>
+        <?php if ($change !== null && $change['subject'] !== ''): ?>
+            <span class="activity-section__note"><?= $escaper->escapeHtml($change['subject']) ?></span>
+        <?php endif; ?>
+    </div>
+    <?php if ($change === null): ?>
+        <p class="activity-section__note">
+            <?= $escaper->escapeHtml(__('No field values are stored for this activity.')) ?>
+        </p>
+    <?php else: ?>
+        <div class="admin-action-diff__toolbar">
+            <div class="admin-action-diff__summary">
+                <span>
+                    <?= /* @noEscape */ __(
+                        '%1 fields changed in %2 scope(s)',
+                        '<strong>' . (int) $change['changedCount'] . '</strong>',
+                        '<strong>' . count($change['groups']) . '</strong>'
+                    ) ?>
+                </span>
+                <?php if ($change['snapshot'] && $change['unchangedCount'] > 0): ?>
+                    <label class="admin-action-diff__toggle">
+                        <input type="checkbox" data-role="show-unchanged">
+                        <?= $escaper->escapeHtml(__('Show unchanged fields (%1)', $change['unchangedCount'])) ?>
+                    </label>
+                <?php elseif ($change['unchangedCount'] > 0): ?>
+                    <span class="activity-section__note">
+                        <?= $escaper->escapeHtml(__('%1 more unchanged', $change['unchangedCount'])) ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            <input type="search" class="admin-action-diff__filter" data-role="field-filter"
+                   placeholder="<?= $escaper->escapeHtmlAttr(__('Filter fields')) ?>"
+                   aria-label="<?= $escaper->escapeHtmlAttr(__('Filter fields')) ?>">
+        </div>
+        <table class="admin-action-diff">
+            <thead>
+            <tr>
+                <th scope="col" class="admin-action-diff__field-col"><?= $escaper->escapeHtml(__('Field')) ?></th>
+                <th scope="col"><?= $escaper->escapeHtml(__('Before')) ?></th>
+                <th scope="col"><?= $escaper->escapeHtml(__('After')) ?></th>
+            </tr>
+            </thead>
+            <?php foreach ($change['groups'] as $group): ?>
+                <tbody data-role="scope-group">
+                <tr class="admin-action-diff__scope">
+                    <td colspan="3">
+                        <strong><?= $escaper->escapeHtml($group['label']) ?></strong>
+                        <?php if ($group['type'] !== 'global'): ?>
+                            <span class="activity-mono">
+                                <?= $escaper->escapeHtml($group['type'] . ' · ' . $group['id']) ?>
+                            </span>
+                        <?php endif; ?>
+                        · <span data-role="scope-count"
+                                data-label="<?= $escaper->escapeHtmlAttr(__('%1 field(s)')) ?>"></span>
+                    </td>
+                </tr>
+                <?php foreach ($group['fields'] as $field): ?>
+                    <tr data-role="field-row"
+                        data-field="<?= $escaper->escapeHtmlAttr($field['field']) ?>"
+                        data-changed="<?= $field['changed'] ? '1' : '0' ?>"
+                        class="admin-action-diff__row<?= $field['changed'] ? '' : ' is-unchanged' ?>">
+                        <th scope="row" class="activity-mono">
+                            <?= $escaper->escapeHtml($field['field']) ?>
+                            <?php if ($field['masked']): ?>
+                                <span class="admin-action-tag"><?= $escaper->escapeHtml(__('masked')) ?></span>
+                            <?php endif; ?>
+                        </th>
+                        <?php foreach (['before', 'after'] as $side): ?>
+                            <?php $value = $field[$side]; ?>
+                            <td>
+                                <?php if ($value === null): ?>
+                                    <span class="admin-action-value admin-action-value--empty"><?=
+                                        $escaper->escapeHtml(__('(empty)'))
+                                    ?></span>
+                                <?php else: ?>
+                                    <?php
+                                    $classes = ['admin-action-value'];
+                                    if ($field['changed'] && !$field['masked']) {
+                                        $classes[] = 'admin-action-value--' . $side;
+                                    }
+                                    if ($field['long']) {
+                                        $classes[] = 'admin-action-value--clamped';
+                                    }
+                                    ?>
+                                    <?php /* No whitespace around the value: it keeps its own line breaks */ ?>
+                                    <span class="<?= $escaper->escapeHtmlAttr(implode(' ', $classes)) ?>"><?=
+                                        $escaper->escapeHtml($value)
+                                    ?></span>
+                                <?php endif; ?>
+                                <?php if ($field['long'] && $side === 'after'): ?>
+                                    <button type="button" class="admin-action-diff__expand" data-role="expand"
+                                            data-collapse-label="<?= $escaper->escapeHtmlAttr(__('Collapse')) ?>"><?=
+                                            $escaper->escapeHtml(__('Expand full text'))
+                                            ?></button>
+                                <?php endif; ?>
+                            </td>
+                        <?php endforeach; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            <?php endforeach; ?>
+            <tbody>
+            <tr data-role="no-match" hidden>
+                <td colspan="3" class="activity-section__note">
+                    <?= $escaper->escapeHtml(__('No field matches the filter.')) ?>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    <?php endif; ?>
+</section>

@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="hryvinskyi_admin_action_log_request" resource="default" engine="innodb"
+           comment="Admin request detail of an activity">
+        <column xsi:type="int" name="activity_id" unsigned="true" nullable="false" comment="Activity ID"/>
+        <column xsi:type="varchar" name="route" nullable="false" length="255" comment="Route: name/controller/action"/>
+        <column xsi:type="varchar" name="http_method" nullable="false" length="10" comment="HTTP method"/>
+        <column xsi:type="varchar" name="controller_class" nullable="true" length="255" comment="Controller class"/>
+        <column xsi:type="boolean" name="is_ajax" nullable="false" default="false" comment="Sent by a script"/>
+        <column xsi:type="mediumtext" name="parameters" nullable="true" comment="Sanitized parameters, JSON"/>
+        <column xsi:type="int" name="parameters_omitted" unsigned="true" nullable="false" default="0"
+                comment="Parameters over the stored limit"/>
+        <column xsi:type="smallint" name="response_code" unsigned="true" nullable="true" comment="HTTP response code"/>
+        <column xsi:type="varchar" name="redirect_path" nullable="true" length="1024" comment="Redirect target"/>
+        <column xsi:type="text" name="messages" nullable="true" comment="Admin messages shown, JSON"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="activity_id"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="FK_735B3B7DDF361450F4837E6D9A60F14D"
+                    table="hryvinskyi_admin_action_log_request" column="activity_id"
+                    referenceTable="hryvinskyi_activity_log" referenceColumn="entity_id" onDelete="CASCADE"/>
+    </table>
+    <table name="hryvinskyi_admin_action_log_entity" resource="default" engine="innodb"
+           comment="Entity change detail of an activity">
+        <column xsi:type="int" name="activity_id" unsigned="true" nullable="false" comment="Activity ID"/>
+        <column xsi:type="varchar" name="entity_type" nullable="false" length="64" comment="Tracked entity code"/>
+        <column xsi:type="varchar" name="entity_id" nullable="true" length="64" comment="Entity ID"/>
+        <column xsi:type="varchar" name="operation" nullable="false" length="16" comment="create, update or delete"/>
+        <column xsi:type="varchar" name="diff_mode" nullable="false" length="16" comment="changed or snapshot"/>
+        <column xsi:type="int" name="unchanged_count" unsigned="true" nullable="false" default="0"
+                comment="Fields compared and found unchanged"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="activity_id"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="FK_3375D94F9696DCBEC19E1B308AC6AC93"
+                    table="hryvinskyi_admin_action_log_entity" column="activity_id"
+                    referenceTable="hryvinskyi_activity_log" referenceColumn="entity_id" onDelete="CASCADE"/>
+        <index referenceId="HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_ENTITY_TYPE_ENTITY_ID" indexType="btree">
+            <column name="entity_type"/>
+            <column name="entity_id"/>
+        </index>
+    </table>
+    <table name="hryvinskyi_admin_action_log_entity_field" resource="default" engine="innodb"
+           comment="Field values before and after an entity change">
+        <column xsi:type="int" name="field_row_id" unsigned="true" nullable="false" identity="true" comment="Row ID"/>
+        <column xsi:type="int" name="activity_id" unsigned="true" nullable="false" comment="Activity ID"/>
+        <column xsi:type="varchar" name="scope_type" nullable="false" length="16" comment="default, website, store or global"/>
+        <column xsi:type="int" name="scope_id" unsigned="true" nullable="false" default="0" comment="Scope ID"/>
+        <column xsi:type="varchar" name="scope_label" nullable="false" length="255" comment="Scope name when recorded"/>
+        <column xsi:type="varchar" name="field" nullable="false" length="255" comment="Field"/>
+        <column xsi:type="mediumtext" name="before_value" nullable="true" comment="Value before"/>
+        <column xsi:type="mediumtext" name="after_value" nullable="true" comment="Value after"/>
+        <column xsi:type="boolean" name="is_changed" nullable="false" default="false" comment="Value changed"/>
+        <column xsi:type="boolean" name="is_masked" nullable="false" default="false" comment="Values masked"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="field_row_id"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="FK_C1E8F376B4B7498B8EE47444810B1A01"
+                    table="hryvinskyi_admin_action_log_entity_field" column="activity_id"
+                    referenceTable="hryvinskyi_admin_action_log_entity" referenceColumn="activity_id" onDelete="CASCADE"/>
+        <index referenceId="HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_ACTIVITY_ID" indexType="btree">
+            <column name="activity_id"/>
+        </index>
+    </table>
+</schema>

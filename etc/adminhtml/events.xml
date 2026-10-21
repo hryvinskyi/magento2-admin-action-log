@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="controller_front_send_response_before">
+        <observer name="hryvinskyi_admin_action_log_finish" instance="Hryvinskyi\AdminActionLog\Observer\AdminRequest\FinishAdminRequest"/>
+    </event>
+    <event name="backend_auth_user_login_success">
+        <observer name="hryvinskyi_admin_action_log_login" instance="Hryvinskyi\AdminActionLog\Observer\AdminRequest\RecordLogin"/>
+    </event>
+    <event name="backend_auth_user_login_failed">
+        <observer name="hryvinskyi_admin_action_log_login_failed" instance="Hryvinskyi\AdminActionLog\Observer\AdminRequest\RecordFailedLogin"/>
+    </event>
+</config>

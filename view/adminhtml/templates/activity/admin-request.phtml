@@ -1,0 +1,118 @@
+<?php
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+declare(strict_types=1);
+
+use Hryvinskyi\AdminActionLog\ViewModel\AdminRequestPanel;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/**
+ * @var Template $block
+ * @var Escaper $escaper
+ */
+
+$panel = $block->getData('panel');
+if (!$panel instanceof AdminRequestPanel) {
+    return;
+}
+$detail = $panel->detail();
+?>
+<section class="activity-section admin-action-panel">
+    <div class="activity-section__header">
+        <span class="activity-section__title"><?= $escaper->escapeHtml(__('Admin request')) ?></span>
+        <span class="activity-section__note">
+            <?= $escaper->escapeHtml(__('controller request and sanitized parameters')) ?>
+        </span>
+    </div>
+    <?php if ($detail === null): ?>
+        <p class="activity-section__note">
+            <?= $escaper->escapeHtml(
+                __(
+                    'No request is stored for this activity: sign-ins and sign-outs are recorded before any admin '
+                    . 'page runs.'
+                )
+            ) ?>
+        </p>
+    <?php else: ?>
+        <div class="activity-facts admin-action-panel__facts">
+            <div class="activity-fact">
+                <div class="activity-fact__label"><?= $escaper->escapeHtml(__('Route')) ?></div>
+                <div class="activity-mono"><?= $escaper->escapeHtml($detail['route']) ?></div>
+            </div>
+            <div class="activity-fact">
+                <div class="activity-fact__label"><?= $escaper->escapeHtml(__('HTTP method')) ?></div>
+                <span class="admin-action-method"><?= $escaper->escapeHtml($detail['method']) ?></span>
+                <?php if ($detail['ajax']): ?>
+                    <span class="activity-fact__note"><?= $escaper->escapeHtml(__('sent by the page script')) ?></span>
+                <?php endif; ?>
+            </div>
+            <div class="activity-fact">
+                <div class="activity-fact__label"><?= $escaper->escapeHtml(__('Controller')) ?></div>
+                <div class="activity-mono admin-action-panel__wrap">
+                    <?= $escaper->escapeHtml($detail['controller'] ?? '—') ?>
+                </div>
+            </div>
+            <div class="activity-fact">
+                <div class="activity-fact__label"><?= $escaper->escapeHtml(__('Response')) ?></div>
+                <div>
+                    <?= $escaper->escapeHtml(
+                        $detail['responseCode'] === null ? '—' : (string) $detail['responseCode']
+                    ) ?>
+                    <?php if ($detail['redirectPath'] !== null): ?>
+                        → <span class="activity-mono admin-action-panel__wrap"><?=
+                            $escaper->escapeHtml($detail['redirectPath'] === '' ? '/' : $detail['redirectPath'])
+                        ?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="admin-action-heading">
+            <?= $escaper->escapeHtml(__('Parameters')) ?>
+            <span class="admin-action-heading__note">
+                · <?= $escaper->escapeHtml(__('sanitized: secrets masked, long values truncated')) ?>
+            </span>
+        </h3>
+        <?php if ($detail['parameters'] === []): ?>
+            <p class="activity-section__note"><?= $escaper->escapeHtml(__('The request sent no parameters.')) ?></p>
+        <?php else: ?>
+            <table class="admin-action-pairs">
+                <tbody>
+                <?php foreach ($detail['parameters'] as $parameter): ?>
+                    <tr>
+                        <th scope="row"><?= $escaper->escapeHtml($parameter['name']) ?></th>
+                        <td>
+                            <?= $escaper->escapeHtml($parameter['value']) ?>
+                            <?php if ($parameter['tag'] !== ''): ?>
+                                <span class="admin-action-tag"><?= $escaper->escapeHtml(__($parameter['tag'])) ?></span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php if ($detail['omitted'] > 0): ?>
+                <p class="activity-section__note">
+                    <?= $escaper->escapeHtml(__('%1 more parameters were not stored.', $detail['omitted'])) ?>
+                </p>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($detail['messages'] !== []): ?>
+            <h3 class="admin-action-heading"><?= $escaper->escapeHtml(__('Admin messages shown to the user')) ?></h3>
+            <ul class="admin-action-messages">
+                <?php foreach ($detail['messages'] as $message): ?>
+                    <?php $tone = $panel->messageTone($message['type']); ?>
+                    <li class="admin-action-message admin-action-message--<?= $escaper->escapeHtmlAttr($tone) ?>">
+                        <?= $escaper->escapeHtml($message['text']) ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    <?php endif; ?>
+</section>

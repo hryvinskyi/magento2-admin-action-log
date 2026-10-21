@@ -1,0 +1,280 @@
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+.admin-action-panel__facts {
+    margin-bottom: 18px;
+}
+
+.admin-action-panel__wrap {
+    word-break: break-all;
+}
+
+.admin-action-method {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #303030;
+    color: #fff;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-action-heading {
+    margin: 0 0 6px;
+    color: #514943;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+}
+
+.admin-action-heading__note {
+    color: #6b6b6b;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.admin-action-tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 0 5px;
+    border: 1px solid #adadad;
+    border-radius: 2px;
+    color: #514943;
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.admin-action-pairs {
+    width: 100%;
+    margin-bottom: 18px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.admin-action-pairs th,
+.admin-action-pairs td {
+    padding: 6px 0;
+    border-bottom: 1px solid #e3e3e3;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 400;
+    text-align: left;
+    vertical-align: top;
+}
+
+.admin-action-pairs th {
+    width: 260px;
+    padding-right: 10px;
+    color: #514943;
+    white-space: nowrap;
+}
+
+.admin-action-pairs td {
+    word-break: break-all;
+}
+
+.admin-action-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 720px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-action-message {
+    margin: 0;
+    padding: 10px 14px 10px 14px;
+    border-left: 3px solid #79a22e;
+    background: #e5efe5;
+    font-size: 13px;
+}
+
+.admin-action-message--error {
+    border-left-color: #e22626;
+    background: #fae5e5;
+}
+
+.admin-action-message--warning,
+.admin-action-message--notice {
+    border-left-color: #c07600;
+    background: #fffbbb;
+}
+
+.admin-action-diff__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+.admin-action-diff__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+}
+
+.admin-action-diff__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #514943;
+    cursor: pointer;
+}
+
+.admin-action-diff__toggle input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: #514943;
+}
+
+.admin-action-diff__filter {
+    width: 220px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid #adadad;
+    border-radius: 1px;
+    color: #303030;
+    font: inherit;
+    font-size: 13px;
+}
+
+.admin-action-diff__filter:focus {
+    border-color: #007bdb;
+    outline: none;
+    box-shadow: 0 0 0 1px #007bdb;
+}
+
+.admin-action-diff {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+}
+
+.admin-action-diff thead th {
+    padding: 9px 10px;
+    border-bottom: 1px solid #d6d6d6;
+    font-weight: 600;
+    text-align: left;
+}
+
+.admin-action-diff thead th + th,
+.admin-action-diff__row td {
+    border-left: 1px dashed #d6d6d6;
+}
+
+.admin-action-diff__field-col {
+    width: 24%;
+}
+
+.admin-action-diff__scope td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #d6d6d6;
+    background: #f8f8f8;
+    color: #514943;
+    font-size: 12px;
+}
+
+.admin-action-diff__scope strong {
+    color: #303030;
+}
+
+.admin-action-diff__row th,
+.admin-action-diff__row td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e3e3e3;
+    vertical-align: top;
+}
+
+.admin-action-diff__row th {
+    font-size: 12.5px;
+    font-weight: 400;
+    text-align: left;
+    word-break: break-all;
+}
+
+.admin-action-diff__row.is-unchanged th,
+.admin-action-diff__row.is-unchanged .admin-action-value {
+    color: #6b6b6b;
+}
+
+.admin-action-value {
+    display: inline-block;
+    max-width: 100%;
+    padding: 2px 6px;
+    border-radius: 2px;
+    color: #303030;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.admin-action-value--before {
+    background: #fbe4e2;
+}
+
+.admin-action-value--after {
+    background: #e3f3e6;
+}
+
+.admin-action-value--empty {
+    color: #6b6b6b;
+    font-style: italic;
+}
+
+.admin-action-value--clamped {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+}
+
+.admin-action-diff__row.is-expanded .admin-action-value--clamped {
+    display: inline-block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+}
+
+.admin-action-diff__expand {
+    display: block;
+    padding: 4px 0 0;
+    border: 0;
+    background: none;
+    color: #007bdb;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.admin-action-diff__expand:hover,
+.admin-action-diff__expand:focus-visible {
+    text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+    .admin-action-pairs th {
+        width: auto;
+        white-space: normal;
+    }
+
+    .admin-action-diff__filter {
+        width: 100%;
+    }
+}

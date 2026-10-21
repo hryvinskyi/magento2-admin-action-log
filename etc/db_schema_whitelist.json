@@ -1,0 +1,58 @@
+{
+    "hryvinskyi_admin_action_log_request": {
+        "column": {
+            "activity_id": true,
+            "route": true,
+            "http_method": true,
+            "controller_class": true,
+            "is_ajax": true,
+            "parameters": true,
+            "parameters_omitted": true,
+            "response_code": true,
+            "redirect_path": true,
+            "messages": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "FK_735B3B7DDF361450F4837E6D9A60F14D": true
+        }
+    },
+    "hryvinskyi_admin_action_log_entity": {
+        "column": {
+            "activity_id": true,
+            "entity_type": true,
+            "entity_id": true,
+            "operation": true,
+            "diff_mode": true,
+            "unchanged_count": true
+        },
+        "index": {
+            "HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_ENTITY_TYPE_ENTITY_ID": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "FK_3375D94F9696DCBEC19E1B308AC6AC93": true
+        }
+    },
+    "hryvinskyi_admin_action_log_entity_field": {
+        "column": {
+            "field_row_id": true,
+            "activity_id": true,
+            "scope_type": true,
+            "scope_id": true,
+            "scope_label": true,
+            "field": true,
+            "before_value": true,
+            "after_value": true,
+            "is_changed": true,
+            "is_masked": true
+        },
+        "index": {
+            "HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_ACTIVITY_ID": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "FK_C1E8F376B4B7498B8EE47444810B1A01": true
+        }
+    }
+}

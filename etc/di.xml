@@ -1,0 +1,380 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <preference for="Hryvinskyi\AdminActionLog\Api\Data\EntityScopeInterface" type="Hryvinskyi\AdminActionLog\Model\Data\EntityScope"/>
+
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Channel\AdminChannel" type="Hryvinskyi\ActivityLog\Model\Channel\Channel">
+        <arguments>
+            <argument name="code" xsi:type="const">Hryvinskyi\AdminActionLog\Model\ChannelCode::ADMIN</argument>
+            <argument name="label" xsi:type="string">Admin request</argument>
+            <argument name="chartColor" xsi:type="string">#44AA99</argument>
+            <argument name="badgeBackground" xsi:type="string">#DAF0EC</argument>
+            <argument name="badgeForeground" xsi:type="string">#1F6B5F</argument>
+            <argument name="retentionConfigPath" xsi:type="const">Hryvinskyi\AdminActionLog\Model\Config::XML_PATH_ADMIN_RETENTION</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\ActivityLog\Model\Channel\ChannelPool">
+        <arguments>
+            <argument name="channels" xsi:type="array">
+                <item name="admin" xsi:type="object" sortOrder="20">Hryvinskyi\AdminActionLog\Model\Channel\AdminChannel</item>
+                <item name="entity" xsi:type="object" sortOrder="30">Hryvinskyi\AdminActionLog\Model\Retention\EntityChannel</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\ActivityLog\Cron\ApplyRetention">
+        <arguments>
+            <argument name="purgers" xsi:type="array">
+                <item name="entity_change" xsi:type="object" sortOrder="100">Hryvinskyi\AdminActionLog\Model\Retention\EntityChangePurger</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Observers and plugins run on every save; what they need is built on the first save worth recording -->
+    <type name="Hryvinskyi\AdminActionLog\Observer\EntityChange\SnapshotBeforeSave">
+        <arguments>
+            <argument name="journal" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Observer\EntityChange\SnapshotBeforeDelete">
+        <arguments>
+            <argument name="journal" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Observer\EntityChange\RecordCommittedChange">
+        <arguments>
+            <argument name="journal" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Plugin\Config\SnapshotEncryptedValue">
+        <arguments>
+            <argument name="journal" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Magento\Config\Model\Config\Backend\Encrypted">
+        <plugin name="hryvinskyi_admin_action_log_snapshot" type="Hryvinskyi\AdminActionLog\Plugin\Config\SnapshotEncryptedValue"/>
+    </type>
+
+    <!-- Tracked entities. Another module adds its own with an item in the "entities" argument below. -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="fieldSource" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\StoredFieldSource</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\GlobalScopeResolver</argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Product\Proxy</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Product</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\ProductEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\StoreScopeResolver</argument>
+            <argument name="code" xsi:type="string">product</argument>
+            <argument name="label" xsi:type="string">Product</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Product</argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="media_gallery" xsi:type="string">media_gallery</item>
+                <item name="quantity_and_stock_status" xsi:type="string">quantity_and_stock_status</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Category\Proxy</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Category</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CategoryEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\StoreScopeResolver</argument>
+            <argument name="code" xsi:type="string">category</argument>
+            <argument name="label" xsi:type="string">Category</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Category</argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="children_count" xsi:type="string">children_count</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Customer\Model\ResourceModel\Customer\Proxy</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Customer\Model\Customer</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CustomerEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage</argument>
+            <argument name="code" xsi:type="string">customer</argument>
+            <argument name="label" xsi:type="string">Customer</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Customer\Model\Customer</argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="rp_token_created_at" xsi:type="string">rp_token_created_at</item>
+                <item name="failures_num" xsi:type="string">failures_num</item>
+                <item name="first_failure" xsi:type="string">first_failure</item>
+                <item name="lock_expires" xsi:type="string">lock_expires</item>
+                <item name="confirmation" xsi:type="string">confirmation</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\OrderStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\OrderEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\OrderStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\StoreScopeResolver</argument>
+            <argument name="code" xsi:type="string">order</argument>
+            <argument name="label" xsi:type="string">Order</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Sales\Model\Order</argument>
+            <argument name="onlyFields" xsi:type="array">
+                <item name="state" xsi:type="string">state</item>
+                <item name="status" xsi:type="string">status</item>
+                <item name="hold_before_state" xsi:type="string">hold_before_state</item>
+                <item name="hold_before_status" xsi:type="string">hold_before_status</item>
+                <item name="customer_note_notify" xsi:type="string">customer_note_notify</item>
+            </argument>
+            <argument name="labelField" xsi:type="string">increment_id</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\OrderCommentStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Status\History\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\OrderCommentEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\OrderCommentStorage</argument>
+            <argument name="code" xsi:type="string">order_comment</argument>
+            <argument name="label" xsi:type="string">Order comment</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Sales\Model\Order\Status\History</argument>
+            <argument name="onlyFields" xsi:type="array">
+                <item name="comment" xsi:type="string">comment</item>
+                <item name="status" xsi:type="string">status</item>
+                <item name="is_customer_notified" xsi:type="string">is_customer_notified</item>
+                <item name="is_visible_on_front" xsi:type="string">is_visible_on_front</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CmsPageStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Page\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CmsPageEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CmsPageStorage</argument>
+            <argument name="code" xsi:type="string">cms_page</argument>
+            <argument name="label" xsi:type="string">CMS page</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Cms\Model\Page</argument>
+            <argument name="labelField" xsi:type="string">identifier</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CmsBlockStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Block\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CmsBlockEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CmsBlockStorage</argument>
+            <argument name="code" xsi:type="string">cms_block</argument>
+            <argument name="label" xsi:type="string">CMS block</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Cms\Model\Block</argument>
+            <argument name="labelField" xsi:type="string">identifier</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ConfigValueStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Config\Model\ResourceModel\Config\Data\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\ConfigValueEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ConfigValueStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\ConfigScopeResolver</argument>
+            <argument name="fieldSource" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\ConfigValueFieldSource</argument>
+            <argument name="code" xsi:type="string">config_value</argument>
+            <argument name="label" xsi:type="string">Config value</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Framework\App\Config\Value</argument>
+            <argument name="labelField" xsi:type="string">path</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\AdminUserStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\User\Model\ResourceModel\User\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\AdminUserEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\AdminUserStorage</argument>
+            <argument name="code" xsi:type="string">admin_user</argument>
+            <argument name="label" xsi:type="string">Admin user</argument>
+            <argument name="modelClass" xsi:type="string">Magento\User\Model\User</argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="extra" xsi:type="string">extra</item>
+                <item name="logdate" xsi:type="string">logdate</item>
+                <item name="lognum" xsi:type="string">lognum</item>
+                <item name="reload_acl_flag" xsi:type="string">reload_acl_flag</item>
+                <item name="failures_num" xsi:type="string">failures_num</item>
+                <item name="first_failure" xsi:type="string">first_failure</item>
+                <item name="lock_expires" xsi:type="string">lock_expires</item>
+                <item name="rp_token_created_at" xsi:type="string">rp_token_created_at</item>
+            </argument>
+            <argument name="labelField" xsi:type="string">username</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\AdminRoleStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Authorization\Model\ResourceModel\Role\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\AdminRoleEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\AdminRoleStorage</argument>
+            <argument name="code" xsi:type="string">admin_role</argument>
+            <argument name="label" xsi:type="string">Admin role</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Authorization\Model\Role</argument>
+            <argument name="labelField" xsi:type="string">role_name</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\IntegrationStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Integration\Model\ResourceModel\Integration\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\IntegrationEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\IntegrationStorage</argument>
+            <argument name="code" xsi:type="string">integration</argument>
+            <argument name="label" xsi:type="string">Integration</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Integration\Model\Integration</argument>
+            <argument name="labelField" xsi:type="string">name</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\UrlRewriteStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\UrlRewrite\Model\ResourceModel\UrlRewrite\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\UrlRewriteEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\UrlRewriteStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\StoreScopeResolver</argument>
+            <argument name="code" xsi:type="string">url_rewrite</argument>
+            <argument name="label" xsi:type="string">URL rewrite</argument>
+            <argument name="modelClass" xsi:type="string">Magento\UrlRewrite\Model\UrlRewrite</argument>
+            <argument name="labelField" xsi:type="string">request_path</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CartPriceRuleStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\SalesRule\Model\ResourceModel\Rule\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CartPriceRuleEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CartPriceRuleStorage</argument>
+            <argument name="code" xsi:type="string">cart_price_rule</argument>
+            <argument name="label" xsi:type="string">Cart price rule</argument>
+            <argument name="modelClass" xsi:type="string">Magento\SalesRule\Model\Rule</argument>
+            <argument name="labelField" xsi:type="string">name</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CatalogPriceRuleStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\CatalogRule\Model\ResourceModel\Rule\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\CatalogPriceRuleEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CatalogPriceRuleStorage</argument>
+            <argument name="code" xsi:type="string">catalog_price_rule</argument>
+            <argument name="label" xsi:type="string">Catalog price rule</argument>
+            <argument name="modelClass" xsi:type="string">Magento\CatalogRule\Model\Rule</argument>
+            <argument name="labelField" xsi:type="string">name</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\StoreStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Store\Model\ResourceModel\Store\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\StoreEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\StoreStorage</argument>
+            <argument name="code" xsi:type="string">store</argument>
+            <argument name="label" xsi:type="string">Store view</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Store\Model\Store</argument>
+            <argument name="labelField" xsi:type="string">code</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\WebsiteStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Store\Model\ResourceModel\Website\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\WebsiteEntity" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\WebsiteStorage</argument>
+            <argument name="code" xsi:type="string">website</argument>
+            <argument name="label" xsi:type="string">Website</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Store\Model\Website</argument>
+            <argument name="labelField" xsi:type="string">code</argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntityPool">
+        <arguments>
+            <argument name="entities" xsi:type="array">
+                <item name="product" xsi:type="object" sortOrder="10">Hryvinskyi\AdminActionLog\Model\EntityChange\ProductEntity</item>
+                <item name="category" xsi:type="object" sortOrder="20">Hryvinskyi\AdminActionLog\Model\EntityChange\CategoryEntity</item>
+                <item name="customer" xsi:type="object" sortOrder="30">Hryvinskyi\AdminActionLog\Model\EntityChange\CustomerEntity</item>
+                <item name="order" xsi:type="object" sortOrder="40">Hryvinskyi\AdminActionLog\Model\EntityChange\OrderEntity</item>
+                <item name="order_comment" xsi:type="object" sortOrder="50">Hryvinskyi\AdminActionLog\Model\EntityChange\OrderCommentEntity</item>
+                <item name="cms_page" xsi:type="object" sortOrder="60">Hryvinskyi\AdminActionLog\Model\EntityChange\CmsPageEntity</item>
+                <item name="cms_block" xsi:type="object" sortOrder="70">Hryvinskyi\AdminActionLog\Model\EntityChange\CmsBlockEntity</item>
+                <item name="config_value" xsi:type="object" sortOrder="80">Hryvinskyi\AdminActionLog\Model\EntityChange\ConfigValueEntity</item>
+                <item name="admin_user" xsi:type="object" sortOrder="90">Hryvinskyi\AdminActionLog\Model\EntityChange\AdminUserEntity</item>
+                <item name="admin_role" xsi:type="object" sortOrder="100">Hryvinskyi\AdminActionLog\Model\EntityChange\AdminRoleEntity</item>
+                <item name="integration" xsi:type="object" sortOrder="110">Hryvinskyi\AdminActionLog\Model\EntityChange\IntegrationEntity</item>
+                <item name="url_rewrite" xsi:type="object" sortOrder="120">Hryvinskyi\AdminActionLog\Model\EntityChange\UrlRewriteEntity</item>
+                <item name="cart_price_rule" xsi:type="object" sortOrder="130">Hryvinskyi\AdminActionLog\Model\EntityChange\CartPriceRuleEntity</item>
+                <item name="catalog_price_rule" xsi:type="object" sortOrder="140">Hryvinskyi\AdminActionLog\Model\EntityChange\CatalogPriceRuleEntity</item>
+                <item name="store" xsi:type="object" sortOrder="150">Hryvinskyi\AdminActionLog\Model\EntityChange\StoreEntity</item>
+                <item name="website" xsi:type="object" sortOrder="160">Hryvinskyi\AdminActionLog\Model\EntityChange\WebsiteEntity</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Settings are saved from the command line too, where only global wiring exists -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Config\Backend\IgnoredRouteList"
+                 type="Hryvinskyi\ConfigurationFields\Model\Config\Backend\TagList">
+        <arguments>
+            <argument name="tagListConfig" xsi:type="array">
+                <item name="separator" xsi:type="string">,</item>
+            </argument>
+        </arguments>
+    </virtualType>
+</config>

@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <section id="hryvinskyi_admin_action_log" translate="label" sortOrder="91" showInDefault="1">
+            <label>Admin Action Log</label>
+            <tab>hryvinskyi</tab>
+            <resource>Hryvinskyi_AdminActionLog::config</resource>
+            <group id="admin" translate="label" sortOrder="10" showInDefault="1">
+                <label>Admin Requests</label>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1">
+                    <label>Record Admin Requests</label>
+                    <comment>Each admin action is journaled with its route, sanitized parameters, response and the messages the admin saw. Sign-ins, failed sign-ins and sign-outs are recorded too.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="log_get_requests" translate="label comment" type="select" sortOrder="20" showInDefault="1">
+                    <label>Record Page Views</label>
+                    <comment>GET requests only read data. Recording them shows who looked at what, at the cost of a much larger journal.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="ignored_routes" translate="label comment" type="text" sortOrder="30" showInDefault="1">
+                    <label>Ignored Routes</label>
+                    <comment><![CDATA[Routes that are never recorded, as <code>route/controller/action</code>. <code>*</code> matches any text, e.g. <code>mui/*</code>.]]></comment>
+                    <frontend_model>Hryvinskyi\AdminActionLog\Block\Adminhtml\System\Config\IgnoredRouteList</frontend_model>
+                    <backend_model>Hryvinskyi\AdminActionLog\Model\Config\Backend\IgnoredRouteList</backend_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="retention_days" translate="label" type="text" sortOrder="40" showInDefault="1">
+                    <label>Keep Admin Requests (days)</label>
+                    <validate>required-entry validate-digits validate-greater-than-zero</validate>
+                </field>
+            </group>
+            <group id="entity" translate="label" sortOrder="20" showInDefault="1">
+                <label>Entity Changes</label>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1">
+                    <label>Record Entity Changes</label>
+                    <comment>A change is journaled once its transaction is committed, with the value of each field before and after. A save that is rolled back leaves no record.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="actor_types" translate="label comment" type="multiselect" sortOrder="20" showInDefault="1">
+                    <label>Record Changes Made By</label>
+                    <comment>Customers and guests change their own accounts, carts and orders all the time; they are left out unless chosen here.</comment>
+                    <source_model>Hryvinskyi\AdminActionLog\Model\Source\ActorTypeOptions</source_model>
+                    <can_be_empty>1</can_be_empty>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="default_retention_days" translate="label comment" type="text" sortOrder="30" showInDefault="1">
+                    <label>Keep Changes (days)</label>
+                    <comment>For every entity without its own row below.</comment>
+                    <validate>required-entry validate-digits validate-greater-than-zero</validate>
+                </field>
+                <field id="types" translate="label comment" sortOrder="40" showInDefault="1">
+                    <label>Per Entity</label>
+                    <comment><![CDATA[<strong>Changed fields only</strong> stores the fields whose value changed. <strong>Full snapshot</strong> also stores the unchanged ones, so the detail page can show the whole record. Entities without a row record changed fields only.]]></comment>
+                    <frontend_model>Hryvinskyi\AdminActionLog\Block\Adminhtml\System\Config\EntityTypeSettings</frontend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>
