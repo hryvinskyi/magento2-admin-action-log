@@ -48,6 +48,8 @@ class ActivityPanelsTest extends AbstractBackendController
         self::assertStringContainsString('Admin request', $html);
         self::assertStringContainsString('Magento\Catalog\Controller\Adminhtml\Product\Save', $html);
         self::assertStringContainsString('catalog/product/edit/id/1188', $html);
+        self::assertStringContainsString('class="admin-action-panel__arrow lucide lucide-arrow-right"', $html);
+        self::assertStringContainsString('class="menu-item-icon lucide lucide-mouse-pointer-click"', $html);
         self::assertStringContainsString('product[name]', $html);
         self::assertStringContainsString('admin-action-tag', $html);
         self::assertStringContainsString('3 more parameters were not stored.', $html);

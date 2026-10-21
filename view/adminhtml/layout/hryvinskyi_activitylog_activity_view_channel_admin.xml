@@ -18,6 +18,7 @@
                    template="Hryvinskyi_AdminActionLog::activity/admin-request.phtml">
                 <arguments>
                     <argument name="panel" xsi:type="object">Hryvinskyi\AdminActionLog\ViewModel\AdminRequestPanel</argument>
+                    <argument name="icons" xsi:type="object">Hryvinskyi\ActivityLog\Api\IconsInterface</argument>
                 </arguments>
             </block>
         </referenceContainer>

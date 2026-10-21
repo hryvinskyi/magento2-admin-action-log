@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Hryvinskyi\ActivityLog\Api\IconsInterface;
 use Hryvinskyi\AdminActionLog\ViewModel\AdminRequestPanel;
 use Magento\Framework\Escaper;
 use Magento\Framework\View\Element\Template;
@@ -20,6 +21,10 @@ $panel = $block->getData('panel');
 if (!$panel instanceof AdminRequestPanel) {
     return;
 }
+$icons = $block->getData('icons');
+$icon = static fn (string $id, string $class): string => $icons instanceof IconsInterface
+    ? $icons->render($id, $class)
+    : '';
 $detail = $panel->detail();
 ?>
 <section class="activity-section admin-action-panel">
@@ -64,7 +69,11 @@ $detail = $panel->detail();
                         $detail['responseCode'] === null ? '—' : (string) $detail['responseCode']
                     ) ?>
                     <?php if ($detail['redirectPath'] !== null): ?>
-                        → <span class="activity-mono admin-action-panel__wrap"><?=
+                        <?= /* @noEscape */ $icon(
+                            'Hryvinskyi_AdminActionLog::arrow-right',
+                            'admin-action-panel__arrow'
+                        ) ?>
+                        <span class="activity-mono admin-action-panel__wrap"><?=
                             $escaper->escapeHtml($detail['redirectPath'] === '' ? '/' : $detail['redirectPath'])
                         ?></span>
                     <?php endif; ?>
