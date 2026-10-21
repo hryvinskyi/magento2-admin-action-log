@@ -20,14 +20,16 @@ $autoloadCandidates = [
 ];
 
 $loader = null;
+$vendorDir = null;
 foreach ($autoloadCandidates as $candidate) {
     if (file_exists($candidate)) {
         $loader = require $candidate;
+        $vendorDir = dirname($candidate);
         break;
     }
 }
 
-if (!$loader instanceof \Composer\Autoload\ClassLoader) {
+if (!$loader instanceof \Composer\Autoload\ClassLoader || $vendorDir === null) {
     throw new \RuntimeException('Unable to locate Composer autoloader for the test bootstrap.');
 }
 
@@ -36,31 +38,14 @@ $loader->addPsr4('Hryvinskyi\\AdminActionLog\\Test\\Unit\\', __DIR__);
 
 // When running inside a Magento installation, also resolve generated factories
 // (e.g. Magento\Framework\HTTP\Client\CurlFactory) from generated/code.
-foreach ($autoloadCandidates as $candidate) {
-    $generated = dirname($candidate, 2) . '/generated/code';
-
-    if (is_dir($generated)) {
-        $loader->add('', [$generated]);
-        break;
-    }
+$generated = dirname($vendorDir) . '/generated/code';
+if (is_dir($generated)) {
+    $loader->add('', [$generated]);
 }
 
-if (!function_exists('__')) {
-    /**
-     * Minimal stand-in for Magento's translate function so classes that build
-     * \Magento\Framework\Phrase messages can run without booting Magento.
-     *
-     * @param mixed ...$argc
-     * @return \Magento\Framework\Phrase
-     */
-    function __(...$argc) // phpcs:ignore
-    {
-        $text = array_shift($argc);
-
-        if (!empty($argc) && is_array($argc[0])) {
-            $argc = $argc[0];
-        }
-
-        return new \Magento\Framework\Phrase(is_string($text) ? $text : '', $argc);
-    }
+// Magento's translate function, which the root autoloader does not load: classes that build
+// \Magento\Framework\Phrase messages call it.
+$translate = $vendorDir . '/magento/framework/Phrase/__.php';
+if (!function_exists('__') && is_file($translate)) {
+    require_once $translate;
 }
