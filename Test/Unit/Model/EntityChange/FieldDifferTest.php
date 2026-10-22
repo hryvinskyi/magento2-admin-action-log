@@ -48,13 +48,26 @@ class FieldDifferTest extends TestCase
         self::assertSame([false, false, false], array_column($changes, 'changed'));
     }
 
-    public function testACreatedEntityHadNothingAndADeletedOneKeepsNothing(): void
+    public function testACreatedEntityHadOnlyWhatItInheritedAndADeletedOneKeepsNothing(): void
     {
         $differ = $this->differ();
 
         self::assertSame(
             [['field' => 'title', 'before' => null, 'after' => 'Footer', 'changed' => true]],
-            $differ->diff('record', ['title' => 'stale'], ['title' => 'Footer'], ChangeOperation::Create)
+            $differ->diff('record', [], ['title' => 'Footer'], ChangeOperation::Create)
+        );
+        self::assertSame(
+            [
+                ['field' => 'web/cookie/lifetime', 'before' => '3600', 'after' => '3600', 'changed' => false],
+                ['field' => 'web/cookie/path', 'before' => '/', 'after' => '/shop', 'changed' => true],
+            ],
+            $differ->diff(
+                'record',
+                ['web/cookie/lifetime' => '3600', 'web/cookie/path' => '/'],
+                ['web/cookie/lifetime' => '3600', 'web/cookie/path' => '/shop'],
+                ChangeOperation::Create
+            ),
+            'A setting saved for the first time is compared with the value it inherited'
         );
         self::assertSame(
             [
@@ -159,7 +172,7 @@ class FieldDifferTest extends TestCase
         );
         $created = $differ->diff(
             'record',
-            ['qty_increments' => '1.0000', 'use_config_qty_increments' => '1'],
+            [],
             ['qty_increments' => '1.0000', 'use_config_qty_increments' => '1'],
             ChangeOperation::Create
         );

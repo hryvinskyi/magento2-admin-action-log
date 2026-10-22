@@ -20,17 +20,14 @@ use Magento\Framework\Exception\LocalizedException;
 /**
  * Puts a setting's history button right after its control on Stores › Configuration
  *
- * The button joins the markup the control prints after itself, so it sits inside the value column, before the
- * setting's comment and the "Use system value" checkbox, whatever the row around it looks like. Only a setting that
- * stores a value gets one, only once, and only on a page that shows the history (see HistoryPage).
+ * The button is handed to the control, which prints it right after its own markup (PrintHistoryButton): inside the
+ * value column, before the setting's comment and the "Use system value" checkbox, whatever the row around it looks
+ * like. It is not put into the markup the control prints after itself, which Magento wraps in a label of the control:
+ * a screen reader would read the button's name as part of the setting's. Only a setting that stores a value gets
+ * one, only once, and only on a page that shows the history (see HistoryPage).
  */
 class AddHistoryButton
 {
-    /**
-     * Element data that marks a control already given its button
-     */
-    private const GIVEN = 'hryvinskyi_config_history_button';
-
     /**
      * @param HistoryPage $page
      * @param StoredSetting $storedSetting
@@ -46,7 +43,7 @@ class AddHistoryButton
     }
 
     /**
-     * Append the history button to the markup printed after the setting's control
+     * Hand the setting's control its history button
      *
      * @param Field $subject
      * @param AbstractElement $element
@@ -56,14 +53,15 @@ class AddHistoryButton
     {
         $fieldConfig = $element->getData('field_config');
         $setting = is_array($fieldConfig) ? $this->storedSetting->of($fieldConfig) : null;
-        if ($setting === null || $element->getData(self::GIVEN) === true || !$this->isHistoryPage($subject)) {
+        if ($setting === null
+            || $element->hasData(HistoryButton::ELEMENT_DATA)
+            || !$this->isHistoryPage($subject)
+        ) {
             return null;
         }
 
         $label = $element->getData('label');
-        $after = $element->getData('after_element_html');
-        $element->setData(self::GIVEN, true);
-        $element->setData('after_element_html', (is_scalar($after) ? (string) $after : '') . $this->button->html(
+        $element->setData(HistoryButton::ELEMENT_DATA, $this->button->html(
             $setting['path'],
             trim(strip_tags(is_scalar($label) || $label instanceof \Stringable ? (string) $label : '')),
             $this->history->of($setting['section'], $setting['path'])

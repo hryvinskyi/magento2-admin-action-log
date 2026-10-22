@@ -13,25 +13,25 @@ use Magento\Backend\Model\UrlInterface;
 use Magento\Framework\AuthorizationInterface;
 
 /**
- * Links to the edit pages of the records a page of changes is about
+ * Links to the pages of the records a page of changes is about
  *
- * A record gets a link only when its kind has an edit page in "editPages", the admin may open that page, and the
- * record still exists. Existence is checked in one query per kind for the whole page, and not at all for a kind the
- * admin may not open. Ids are compared as text.
+ * A record gets a link only when its kind has a page in "editPages", the admin may open that page, and the record can
+ * still be opened there. The pages are asked once per kind for the whole page of changes, and not at all for a kind
+ * the admin may not open. Ids are compared as text.
  *
  * @phpstan-type RecordReference array{type: string, id: string|null}
  */
 class SubjectLinks
 {
     /**
-     * @var array<string, EditPage>
+     * @var array<string, RecordPageInterface>
      */
     private array $editPages = [];
 
     /**
      * @param UrlInterface $url
      * @param AuthorizationInterface $authorization
-     * @param array<string,EditPage> $editPages Keyed by tracked entity code
+     * @param array<string,RecordPageInterface> $editPages Keyed by tracked entity code
      */
     public function __construct(
         private readonly UrlInterface $url,
@@ -58,49 +58,49 @@ class SubjectLinks
             }
         }
 
-        $existing = [];
+        $paramsByType = [];
         foreach ($idsByType as $type => $ids) {
-            $editPage = $this->openable((string) $type);
-            if ($editPage !== null) {
-                $existing[$type] = array_flip($editPage->existing(array_values($ids)));
+            $page = $this->openable((string) $type);
+            if ($page !== null) {
+                $paramsByType[$type] = $page->paramsOf(array_values($ids));
             }
         }
 
         $links = [];
         foreach ($records as $key => $record) {
-            $id = $record['id'];
-            $editPage = $this->editPages[$record['type']] ?? null;
-            if ($id === null || $editPage === null || !isset($existing[$record['type']][$id])) {
+            $page = $this->editPages[$record['type']] ?? null;
+            $params = $record['id'] === null ? null : ($paramsByType[$record['type']][$record['id']] ?? null);
+            if ($page === null || $params === null) {
                 continue;
             }
 
-            $links[$key] = $this->url->getUrl($editPage->getRoute(), $editPage->paramsFor($id));
+            $links[$key] = $this->url->getUrl($page->getRoute(), $params);
         }
 
         return $links;
     }
 
     /**
-     * The edit page of a kind of record, or null when it has none or the admin may not open it
+     * The page of a kind of record, or null when it has none or the admin may not open it
      *
      * @param string $type
-     * @return EditPage|null
+     * @return RecordPageInterface|null
      */
-    private function openable(string $type): ?EditPage
+    private function openable(string $type): ?RecordPageInterface
     {
-        $editPage = $this->editPages[$type] ?? null;
+        $page = $this->editPages[$type] ?? null;
 
-        return $editPage !== null && $this->authorization->isAllowed($editPage->getAclResource()) ? $editPage : null;
+        return $page !== null && $this->authorization->isAllowed($page->getAclResource()) ? $page : null;
     }
 
     /**
-     * Register an edit page; anything else in the argument fails here, at construction
+     * Register a page; anything else in the argument fails here, at construction
      *
      * @param string $entityType
-     * @param EditPage $editPage
+     * @param RecordPageInterface $editPage
      * @return void
      */
-    private function add(string $entityType, EditPage $editPage): void
+    private function add(string $entityType, RecordPageInterface $editPage): void
     {
         $this->editPages[$entityType] = $editPage;
     }

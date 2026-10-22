@@ -17,7 +17,7 @@ use Hryvinskyi\AdminActionLog\Model\Search\Record\RecordPresenceInterface;
  *
  * Declared in di.xml as a virtual type per kind and added to SubjectLinks' "editPages" under the kind's code.
  */
-class EditPage
+class EditPage implements RecordPageInterface
 {
     private const ROUTE_PATTERN = '#^[a-z][a-z0-9_]*/[a-z][a-z0-9_]*/[a-z][a-zA-Z0-9_]*$#';
     private const PARAM_PATTERN = '/^[a-z][a-z0-9_]*$/';
@@ -50,9 +50,7 @@ class EditPage
     }
 
     /**
-     * The ACL resource an admin needs to open the page
-     *
-     * @return string
+     * @inheritDoc
      */
     public function getAclResource(): string
     {
@@ -60,9 +58,7 @@ class EditPage
     }
 
     /**
-     * The admin route path of the page
-     *
-     * @return string
+     * @inheritDoc
      */
     public function getRoute(): string
     {
@@ -70,24 +66,15 @@ class EditPage
     }
 
     /**
-     * The route parameters that open one record
-     *
-     * @param string $id
-     * @return array<string, string>
+     * @inheritDoc
      */
-    public function paramsFor(string $id): array
+    public function paramsOf(array $ids): array
     {
-        return [$this->idParam => $id];
-    }
+        $params = [];
+        foreach ($this->records->existing($ids) as $id) {
+            $params[$id] = [$this->idParam => $id];
+        }
 
-    /**
-     * The ids among those given whose record still exists
-     *
-     * @param list<string> $ids
-     * @return list<string>
-     */
-    public function existing(array $ids): array
-    {
-        return $this->records->existing($ids);
+        return $params;
     }
 }

@@ -153,6 +153,9 @@
     <type name="Magento\Config\Block\System\Config\Form\Field">
         <plugin name="hryvinskyi_admin_action_log_config_history" type="Hryvinskyi\AdminActionLog\Plugin\Config\AddHistoryButton"/>
     </type>
+    <type name="Magento\Framework\Data\Form\Element\AbstractElement">
+        <plugin name="hryvinskyi_admin_action_log_config_history" type="Hryvinskyi\AdminActionLog\Plugin\Config\PrintHistoryButton"/>
+    </type>
     <type name="Hryvinskyi\AdminActionLog\Model\ConfigHistory\StoredSetting">
         <arguments>
             <argument name="displayOnlyTypes" xsi:type="array">

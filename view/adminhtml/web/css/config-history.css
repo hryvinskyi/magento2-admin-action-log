@@ -15,10 +15,6 @@
     padding-right: 4.2rem;
 }
 
-.accordion .config td.value label.addafter:has(> .config-history) {
-    display: contents;
-}
-
 .config-history {
     position: absolute;
     top: 2.35rem;

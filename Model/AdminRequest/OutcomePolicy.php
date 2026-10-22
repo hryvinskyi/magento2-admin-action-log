@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Hryvinskyi\AdminActionLog\Model\AdminRequest;
 
 use Hryvinskyi\ActivityLog\Api\Data\Outcome;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Message\MessageInterface;
 
 /**
@@ -18,6 +19,10 @@ use Magento\Framework\Message\MessageInterface;
  * A thrown error or an error status is a failure. 403 is the admin panel refusing the page for lack of permission:
  * denied. A request answered normally but with an error message ("The URL key is already used") also failed; the
  * first error message explains it.
+ *
+ * A thrown error explains the failure by its message only when it was written for people (a LocalizedException).
+ * Any other error's message is for developers and may quote a query or a file path, so the activity says only that
+ * the request stopped on an unexpected error; Magento keeps the error itself in its exception log.
  */
 class OutcomePolicy
 {
@@ -36,7 +41,7 @@ class OutcomePolicy
     public function decide(?int $responseCode, array $messages, ?\Throwable $error): array
     {
         if ($error !== null) {
-            return ['outcome' => Outcome::Failure, 'message' => $this->clip($error->getMessage())];
+            return ['outcome' => Outcome::Failure, 'message' => $this->explanationOf($error)];
         }
 
         if ($responseCode === self::DENIED_STATUS) {
@@ -51,6 +56,21 @@ class OutcomePolicy
         return $firstError === null
             ? ['outcome' => Outcome::Success, 'message' => null]
             : ['outcome' => Outcome::Failure, 'message' => $firstError];
+    }
+
+    /**
+     * What a thrown error tells people about the failure
+     *
+     * @param \Throwable $error
+     * @return string|null
+     */
+    private function explanationOf(\Throwable $error): ?string
+    {
+        if ($error instanceof LocalizedException) {
+            return $this->clip($error->getMessage());
+        }
+
+        return __('The request stopped on an unexpected error. The error is in the exception log.')->render();
     }
 
     /**

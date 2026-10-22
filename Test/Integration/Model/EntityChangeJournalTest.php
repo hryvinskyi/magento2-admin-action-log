@@ -23,6 +23,7 @@ use Magento\Cms\Model\BlockFactory;
 use Magento\Config\Model\Config\Backend\Encrypted;
 use Magento\Config\Model\ResourceModel\Config\Data as ConfigData;
 use Magento\Eav\Model\Entity\Attribute\Source\Boolean;
+use Magento\Framework\App\Config\ReinitableConfigInterface;
 use Magento\Framework\App\Config\Value;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\TransactionFactory;
@@ -44,6 +45,11 @@ use PHPUnit\Framework\TestCase;
 #[DbIsolation(false)]
 class EntityChangeJournalTest extends TestCase
 {
+    /**
+     * A setting whose module default is 90, saved in a test without a row of its own before
+     */
+    private const INHERITING_SETTING = 'hryvinskyi_admin_action_log/admin/retention_days';
+
     protected function tearDown(): void
     {
         $resource = self::service(ResourceConnection::class);
@@ -56,13 +62,16 @@ class EntityChangeJournalTest extends TestCase
         $connection->delete($resource->getTableName('url_rewrite'), ['request_path LIKE ?' => 'aal-label-%']);
         $connection->delete($resource->getTableName('cms_block'), ['identifier LIKE ?' => 'aal-%']);
         $connection->delete($resource->getTableName('core_config_data'), ['path LIKE ?' => 'hryvinskyi_test/%']);
+        $connection->delete($resource->getTableName('core_config_data'), ['path = ?' => self::INHERITING_SETTING]);
         $connection->delete($resource->getTableName('catalog_product_entity'), ['sku = ?' => 'aal-label-tote']);
         $connection->delete($resource->getTableName('hryvinskyi_activity_log'), [
             'channel = ?' => 'entity',
             '(subject_label LIKE \'CMS block aal-%\' OR subject_label LIKE \'Config value hryvinskyi_test/%\''
+                . ' OR subject_label LIKE \'Config value ' . self::INHERITING_SETTING . '%\''
                 . ' OR subject_label LIKE \'Product aal-label-tote%\''
                 . ' OR subject_label LIKE \'Category Aal Label Gear%\')',
         ]);
+        self::service(ReinitableConfigInterface::class)->reinit();
     }
 
     public function testProductsAndCategoriesAreNamedByWhatPeopleKnow(): void
@@ -293,6 +302,31 @@ class EntityChangeJournalTest extends TestCase
         self::assertSame('Default Config', $title['detail']['fields'][0]['scopeLabel']);
     }
 
+    public function testSavingASettingForTheFirstTimeWithTheValueItHadIsNoChange(): void
+    {
+        $this->saveConfig(Value::class, self::INHERITING_SETTING, '90');
+        $this->saveConfig(Value::class, self::INHERITING_SETTING, '90', 'websites', 1);
+
+        self::assertSame(
+            0,
+            $this->countChangesBySubject('Config value ' . self::INHERITING_SETTING . '%'),
+            'The default scope inherited the module default and the website the default scope: nothing changed'
+        );
+    }
+
+    public function testANewValueSavedForTheFirstTimeChangedFromTheInheritedOne(): void
+    {
+        $this->saveConfig(Value::class, self::INHERITING_SETTING, '120', 'websites', 1);
+
+        $change = $this->latestChangeBySubject('Config value ' . self::INHERITING_SETTING . '%');
+        self::assertSame('Config value created', $change['action']);
+        self::assertSame(
+            [['field' => self::INHERITING_SETTING, 'before' => '90', 'after' => '120', 'changed' => true]],
+            $this->fields($change['detail'])
+        );
+        self::assertSame('Main Website', $change['detail']['fields'][0]['scopeLabel']);
+    }
+
     #[Config('hryvinskyi_admin_action_log/entity/actor_types', 'admin')]
     public function testChangesByActorsNotChosenAreNotRecorded(): void
     {
@@ -335,13 +369,38 @@ class EntityChangeJournalTest extends TestCase
      * @param class-string<Value> $class
      * @param string $path
      * @param string $value
+     * @param string $scope
+     * @param int $scopeId
      * @return void
      */
-    private function saveConfig(string $class, string $path, string $value): void
-    {
+    private function saveConfig(
+        string $class,
+        string $path,
+        string $value,
+        string $scope = 'default',
+        int $scopeId = 0
+    ): void {
         $model = self::service($class, []);
-        $model->addData(['path' => $path, 'value' => $value, 'scope' => 'default', 'scope_id' => 0]);
+        $model->addData(['path' => $path, 'value' => $value, 'scope' => $scope, 'scope_id' => $scopeId]);
         self::service(ConfigData::class)->save($model);
+    }
+
+    /**
+     * How many changes name a subject like this
+     *
+     * @param string $subjectLike
+     * @return int
+     */
+    private function countChangesBySubject(string $subjectLike): int
+    {
+        $connection = self::service(ResourceConnection::class)->getConnection();
+
+        return (int) $connection->fetchOne(
+            $connection->select()
+                ->from(self::service(ResourceConnection::class)->getTableName('hryvinskyi_activity_log'), ['COUNT(*)'])
+                ->where('channel = ?', 'entity')
+                ->where('subject_label LIKE ?', $subjectLike)
+        );
     }
 
     /**

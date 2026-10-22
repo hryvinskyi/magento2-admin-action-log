@@ -19,6 +19,9 @@ use Magento\Catalog\Test\Fixture\AttributeSet as AttributeSetFixture;
 use Magento\Catalog\Test\Fixture\Category as CategoryFixture;
 use Magento\Catalog\Test\Fixture\Product as ProductFixture;
 use Magento\Framework\Acl\Builder as AclBuilder;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\Pdo\Mysql;
+use Magento\Sales\Model\OrderFactory;
 use Magento\TestFramework\Fixture\Config;
 use Magento\TestFramework\Fixture\DataFixture;
 use Magento\TestFramework\Fixture\DataFixtureStorageManager;
@@ -228,6 +231,59 @@ class EntityChangeDetailsTest extends AbstractBackendController
         ], 'The change is still described');
     }
 
+    #[DataFixture('Magento/Sales/_files/order.php')]
+    public function testOpensAnOrderCommentOnItsOrderAndASettingOnItsSectionInItsScope(): void
+    {
+        $order = EntityChanges::service(OrderFactory::class)->create()->loadByIncrementId('100000001');
+        $orderId = is_scalar($order->getEntityId()) ? (string) $order->getEntityId() : '';
+        $resource = EntityChanges::service(ResourceConnection::class);
+        $connection = $resource->getConnection();
+        self::assertInstanceOf(Mysql::class, $connection);
+        $connection->insert($resource->getTableName('sales_order_status_history'), [
+            'parent_id' => (int) $orderId,
+            'comment' => 'Called the customer',
+            'entity_name' => 'order',
+        ]);
+        $commentId = (string) $connection->lastInsertId($resource->getTableName('sales_order_status_history'));
+        $connection->insert($resource->getTableName('core_config_data'), [
+            'scope' => 'websites',
+            'scope_id' => 1,
+            'path' => 'hryvinskyi_admin_action_log/admin/retention_days',
+            'value' => '120',
+        ]);
+        $settingId = (string) $connection->lastInsertId($resource->getTableName('core_config_data'));
+
+        $comment = $this->changes->change(
+            'order_comment',
+            $commentId,
+            [['field' => 'comment', 'before' => null, 'after' => 'Called the customer']],
+            journal: ['correlation_id' => self::REQUEST],
+            operation: ChangeOperation::Create
+        );
+        $setting = $this->changes->change(
+            'config_value',
+            $settingId,
+            [['field' => 'hryvinskyi_admin_action_log/admin/retention_days', 'before' => '90', 'after' => '120']],
+            journal: ['correlation_id' => self::REQUEST]
+        );
+        $goneComment = $this->changes->change(
+            'order_comment',
+            '999993',
+            [['field' => 'comment', 'before' => null, 'after' => 'Lost']],
+            journal: ['correlation_id' => self::REQUEST]
+        );
+
+        $links = $this->subjectUrls($this->search());
+
+        self::assertStringContainsString('/sales/order/view/order_id/' . $orderId . '/', (string) $links[$comment]);
+        self::assertStringContainsString(
+            '/system_config/edit/section/hryvinskyi_admin_action_log/website/1/',
+            (string) $links[$setting]
+        );
+        self::assertArrayHasKey($goneComment, $links);
+        self::assertNull($links[$goneComment], 'A comment that is gone opens nothing');
+    }
+
     #[DataFixture(CategoryFixture::class, ['name' => 'Aal Gear'], 'gear')]
     #[DataFixture(CategoryFixture::class, ['name' => 'Aal Bags & Luggage', 'parent_id' => '$gear.id$'], 'bags')]
     #[DataFixture(AttributeSetFixture::class, ['attribute_set_name' => 'Aal Bottom'], 'bottom')]
@@ -363,7 +419,7 @@ class EntityChangeDetailsTest extends AbstractBackendController
     {
         $setting = $this->changes->change(
             'config_value',
-            '12',
+            '999997',
             [['field' => 'hryvinskyi_admin_action_log/admin/enabled', 'before' => '1', 'after' => '0']],
             journal: [
                 'correlation_id' => self::REQUEST,

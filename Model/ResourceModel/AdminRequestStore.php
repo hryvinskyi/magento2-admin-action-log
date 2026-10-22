@@ -72,14 +72,42 @@ class AdminRequestStore
      */
     public function find(int $activityId): ?array
     {
-        $connection = $this->resourceConnection->getConnection();
-        $row = $connection->fetchRow(
-            $connection->select()->from($this->table())->where('activity_id = ?', $activityId)
-        );
-        if (!is_array($row)) {
-            return null;
+        return $this->findMany([$activityId])[$activityId] ?? null;
+    }
+
+    /**
+     * The requests of the activities that have one, keyed by activity id, read in one query
+     *
+     * @param list<int> $activityIds
+     * @return array<int, RequestDetail>
+     */
+    public function findMany(array $activityIds): array
+    {
+        if ($activityIds === []) {
+            return [];
         }
 
+        $connection = $this->resourceConnection->getConnection();
+        $requests = [];
+        foreach ($connection->fetchAll(
+            $connection->select()->from($this->table())->where('activity_id IN (?)', $activityIds)
+        ) as $row) {
+            if (is_array($row) && is_numeric($row['activity_id'] ?? null)) {
+                $requests[(int) $row['activity_id']] = $this->detailOf($row);
+            }
+        }
+
+        return $requests;
+    }
+
+    /**
+     * A stored row as a request detail
+     *
+     * @param array<mixed> $row
+     * @return RequestDetail
+     */
+    private function detailOf(array $row): array
+    {
         return [
             'route' => $this->text($row['route'] ?? null),
             'method' => $this->text($row['http_method'] ?? null),

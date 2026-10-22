@@ -384,6 +384,22 @@
             <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
         </arguments>
     </virtualType>
+    <!-- A store without sources corrects quantities of sales, cancellations and returns with one query -->
+    <type name="Magento\CatalogInventory\Model\ResourceModel\Stock">
+        <plugin name="hryvinskyi_admin_action_log_stock_correction" type="Hryvinskyi\AdminActionLog\Plugin\CatalogInventory\RecordStockCorrection"/>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Plugin\CatalogInventory\RecordStockCorrection">
+        <arguments>
+            <argument name="recorder" xsi:type="object">Hryvinskyi\AdminActionLog\Api\EntityChangeRecorderInterface\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal">
+        <arguments>
+            <argument name="inheritedStates" xsi:type="array">
+                <item name="config_value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Inherited\ConfigInheritedState</item>
+            </argument>
+        </arguments>
+    </type>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ConfigValueStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
         <arguments>
             <argument name="resource" xsi:type="object">Magento\Config\Model\ResourceModel\Config\Data\Proxy</argument>
@@ -832,6 +848,96 @@
         <arguments>
             <argument name="detailProviders" xsi:type="array">
                 <item name="entity" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\EntityChangeDetails</item>
+                <item name="admin" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\DeniedRequestDetails</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- A refused admin request tried to change or delete: the kind of record each controller writes, and where its id is -->
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Detail\DeniedRequestDetails">
+        <arguments>
+            <argument name="targets" xsi:type="array">
+                <item name="catalog/product" xsi:type="array">
+                    <item name="entity" xsi:type="string">product</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="catalog/category" xsi:type="array">
+                    <item name="entity" xsi:type="string">category</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">entity_id</item>
+                        <item name="1" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="customer/index" xsi:type="array">
+                    <item name="entity" xsi:type="string">customer</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">customer[entity_id]</item>
+                        <item name="1" xsi:type="string">customer_id</item>
+                        <item name="2" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="sales/order" xsi:type="array">
+                    <item name="entity" xsi:type="string">order</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">order_id</item>
+                    </item>
+                </item>
+                <item name="cms/page" xsi:type="array">
+                    <item name="entity" xsi:type="string">cms_page</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">page_id</item>
+                    </item>
+                </item>
+                <item name="cms/block" xsi:type="array">
+                    <item name="entity" xsi:type="string">cms_block</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">block_id</item>
+                    </item>
+                </item>
+                <item name="adminhtml/user" xsi:type="array">
+                    <item name="entity" xsi:type="string">admin_user</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">user_id</item>
+                    </item>
+                </item>
+                <item name="adminhtml/user_role" xsi:type="array">
+                    <item name="entity" xsi:type="string">admin_role</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">role_id</item>
+                        <item name="1" xsi:type="string">rid</item>
+                    </item>
+                </item>
+                <item name="adminhtml/integration" xsi:type="array">
+                    <item name="entity" xsi:type="string">integration</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="adminhtml/url_rewrite" xsi:type="array">
+                    <item name="entity" xsi:type="string">url_rewrite</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="sales_rule/promo_quote" xsi:type="array">
+                    <item name="entity" xsi:type="string">cart_price_rule</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">rule_id</item>
+                        <item name="1" xsi:type="string">id</item>
+                    </item>
+                </item>
+                <item name="catalog_rule/promo_catalog" xsi:type="array">
+                    <item name="entity" xsi:type="string">catalog_price_rule</item>
+                    <item name="idParams" xsi:type="array">
+                        <item name="0" xsi:type="string">rule_id</item>
+                        <item name="1" xsi:type="string">id</item>
+                    </item>
+                </item>
+            </argument>
+            <argument name="deleteActions" xsi:type="array">
+                <item name="delete" xsi:type="string">delete</item>
+                <item name="massDelete" xsi:type="string">massDelete</item>
             </argument>
         </arguments>
     </type>
@@ -1052,6 +1158,8 @@
                 <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CategoryEditPage</item>
                 <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CustomerEditPage</item>
                 <item name="order" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderEditPage</item>
+                <item name="order_comment" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderCommentPage</item>
+                <item name="config_value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\ConfigSectionPage</item>
                 <item name="cms_page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsPageEditPage</item>
                 <item name="cms_block" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsBlockEditPage</item>
                 <item name="admin_user" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\AdminUserEditPage</item>
@@ -1117,6 +1225,19 @@
             <argument name="aclResource" xsi:type="string">Magento_Sales::actions_view</argument>
         </arguments>
     </virtualType>
+    <!-- An order comment opens its order; a stored setting opens its configuration section in its scope -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderCommentPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\OwnedRecordPage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Status\History\Proxy</argument>
+            <argument name="ownerColumn" xsi:type="string">parent_id</argument>
+            <argument name="ownerPage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderEditPage</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Detail\ConfigSectionPage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Config\Model\ResourceModel\Config\Data\Proxy</argument>
+        </arguments>
+    </type>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPagePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
         <arguments>
             <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Page\Proxy</argument>

@@ -20,7 +20,8 @@ use Psr\Log\LoggerInterface;
  * "records" names, per tracked entity code, where the fields naming its records are read: the entity is then named as
  * its own changes name it. The records named by the changes of one call are read together, and only when a change is
  * written. An entity without one, or whose record is gone, is named by its label and id. A field is secret by the
- * tracked entity pool's rule, told from the field alone, so no record is read to mask a value.
+ * tracked entity pool's rule, told from the field alone, so no record is read to mask a value. A creation is recorded
+ * from nothing: the values a change gives for before are ignored, as its contract says.
  *
  * Each change is written at once, through the default connection, so a change made inside a transaction is recorded
  * inside it and leaves no record when that transaction rolls back. Each change is recorded on its own: one that fails
@@ -99,11 +100,12 @@ class EntityChangeRecorder implements EntityChangeRecorderInterface
 
         $id = $change->getEntityId();
         $records = $this->records[$code] ?? null;
+        $operation = ChangeOperation::from($change->getOperation());
         $this->writer->write(
             $entity,
             $id,
-            ChangeOperation::from($change->getOperation()),
-            $change->getBefore(),
+            $operation,
+            $operation === ChangeOperation::Create ? [] : $change->getBefore(),
             $change->getAfter(),
             static function () use ($entity, $id, $records, $named): string {
                 $found = $records?->records($named)[$id] ?? null;

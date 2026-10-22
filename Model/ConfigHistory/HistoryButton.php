@@ -30,6 +30,11 @@ class HistoryButton
     public const ROLE = 'config-history-open';
 
     /**
+     * The element data holding a control's button until the control prints it after its own markup
+     */
+    public const ELEMENT_DATA = 'hryvinskyi_config_history_button';
+
+    /**
      * @param Escaper $escaper
      * @param IconsInterface $icons
      */

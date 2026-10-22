@@ -23,6 +23,7 @@ use Magento\CatalogInventory\Api\Data\StockItemInterface;
 use Magento\CatalogInventory\Api\Data\StockItemInterfaceFactory;
 use Magento\CatalogInventory\Api\StockItemRepositoryInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\CatalogInventory\Model\ResourceModel\Stock as StockResource;
 use Magento\CatalogInventory\Model\ResourceModel\Stock\Item as StockItemResource;
 use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\App\ResourceConnection;
@@ -149,6 +150,20 @@ class StockItemChangeTest extends TestCase
         self::assertSame(['qty'], array_keys($fields), 'Only what changed');
         self::assertSame('100.0000', $fields['qty']['before'] ?? null);
         self::assertEquals(95, (float) ($fields['qty']['after'] ?? 0));
+    }
+
+    public function testAQuantityASaleTakesWithOneQueryIsAChangeOfTheProduct(): void
+    {
+        self::service(StockResource::class)->correctItemsQty([(int) $this->productId => 2], 0, '-');
+
+        $change = $this->latestChange();
+        self::assertSame(
+            ['product', $this->productId],
+            [$change['detail']['entityType'], $change['detail']['entityId']]
+        );
+        $fields = $this->fieldsByName($change['detail']);
+        self::assertSame(['qty'], array_keys($fields));
+        self::assertSame(['100.0000', '98.0000'], [$fields['qty']['before'] ?? null, $fields['qty']['after'] ?? null]);
     }
 
     public function testGoingOutOfStockIsRecordedAsTheStockStatus(): void

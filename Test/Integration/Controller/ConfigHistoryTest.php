@@ -147,6 +147,14 @@ class ConfigHistoryTest extends AbstractBackendController
         ]);
         preg_match_all('/<button[^>]*data-role="config-history-open"/', $body, $all);
         self::assertCount(count($buttons), $all[0], 'One button per setting');
+        self::assertSame(
+            [count($buttons), 0],
+            [
+                $this->countNodes($body, '//td[contains(@class, "value")]//button[@data-role="config-history-open"]'),
+                $this->countNodes($body, '//label//button[@data-role="config-history-open"]'),
+            ],
+            'Each button sits in its setting\'s value column, outside the labels a screen reader names the control by'
+        );
 
         $config = $this->popoverConfig($body);
         self::assertSame([50, $oldestMs], [$config['limit'] ?? null, $config['loggingStartedMs'] ?? null]);
@@ -422,6 +430,23 @@ class ConfigHistoryTest extends AbstractBackendController
         preg_match('/config-history__button--([a-z]+)/', $button['class'] ?? '', $state);
 
         return $state[1] ?? '';
+    }
+
+    /**
+     * How many nodes of the parsed page an XPath expression finds
+     *
+     * @param string $html
+     * @param string $expression
+     * @return int
+     */
+    private function countNodes(string $html, string $expression): int
+    {
+        $document = new \DOMDocument();
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $nodes = (new \DOMXPath($document))->query($expression);
+        self::assertInstanceOf(\DOMNodeList::class, $nodes);
+
+        return $nodes->length;
     }
 
     /**

@@ -232,17 +232,18 @@ takes a moment.
 ACL: `Hryvinskyi_AdminActionLog::config` for the settings. Viewing the journal uses the Activity Log's permissions.
 
 ## Known limits
-- A denied write has no "tried to change" or "tried to delete" sentence yet. It is shown with its Denied outcome.
-- Order comments and settings have no link to an edit page.
-- The first save of a configuration section records every field it writes.
+- A refused request is named by its kind of record only for the controllers listed in the `targets` argument of
+  `Model\Search\Detail\DeniedRequestDetails`; any other refused write is named by its route.
+- A setting's link opens its configuration section only while its row exists: a setting put back to its inherited
+  value has no row left.
 - A change Magento makes on its own is marked only when the form's data shows it was not asked for. A field the form
   sends under another name than the one recorded, or not at all although the record keeps it elsewhere, is never
   marked, and neither is an emptied list.
 - A record named for changes recorded without a model is read once per request: a product renamed earlier in the same
   request keeps the name it had when it was first read.
-- Stock written with plain SQL is not recorded: the quantity an order takes, an import, the update of every item after
-  a stock setting changes, and a per-source quantity copied into the stock item by a module that keeps stock per
-  source.
+- Stock written with plain SQL is recorded only where the stock corrects quantities for a sale, a cancellation or a
+  refund. An import, the update of every item after a stock setting changes, and a per-source quantity copied into
+  the stock item by a module that keeps stock per source are not recorded.
 - A new product's stock is recorded in the same request as the product's creation, but just before it.
 
 ## License

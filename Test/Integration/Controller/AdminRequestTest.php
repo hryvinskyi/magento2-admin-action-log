@@ -9,9 +9,13 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Test\Integration\Controller;
 
+use Hryvinskyi\ActivityLog\Api\Data\Search\Verb;
 use Hryvinskyi\ActivityLog\Api\SanitizerInterface;
+use Hryvinskyi\ActivityLog\Model\Search\Detail\EventDetails;
 use Hryvinskyi\AdminActionLog\Model\ResourceModel\AdminRequestStore;
 use Magento\Backend\Model\Auth;
+use Magento\Backend\Model\Authorization\RoleLocator;
+use Magento\Framework\Acl\Builder as AclBuilder;
 use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Exception\LocalizedException;
@@ -21,11 +25,26 @@ use Magento\TestFramework\TestCase\AbstractBackendController;
 
 /**
  * Admin requests through the real admin stack: dispatch, plugins, response and journal
+ *
+ * The requests are Magento's CMS block pages, so the access checks this test case inherits run against them: a page
+ * the admin's role allows answers, one it does not answers 403. The access list a test narrows is rebuilt from the
+ * stored roles when the test ends.
  */
 class AdminRequestTest extends AbstractBackendController
 {
+    /**
+     * @var string
+     */
+    protected $resource = 'Magento_Cms::block';
+
+    /**
+     * @var string
+     */
+    protected $uri = 'backend/cms/block/index';
+
     protected function tearDown(): void
     {
+        $this->service(AclBuilder::class)->resetRuntimeAcl();
         $resource = $this->service(ResourceConnection::class);
         $connection = $resource->getConnection();
         $connection->delete($resource->getTableName('cms_block'), ['identifier LIKE ?' => 'aal-request-%']);
@@ -76,6 +95,39 @@ class AdminRequestTest extends AbstractBackendController
         );
         self::assertSame('CMS block ' . $identifier, $request['subject'], 'The request acted on the block it created.');
         self::assertLessThanOrEqual($change['occurredAtMs'], $request['occurredAtMs']);
+    }
+
+    public function testASaveTheRoleMayNotMakeIsRecordedAsDenied(): void
+    {
+        $role = $this->service(RoleLocator::class)->getAclRoleId();
+        self::assertIsString($role, 'No admin is logged in.');
+        $this->service(AclBuilder::class)->getAcl()->deny($role, $this->resource);
+        $this->httpRequest()->setMethod(HttpRequest::METHOD_POST)->setPostValue([
+            'title' => 'Not allowed',
+            'identifier' => 'aal-request-denied',
+            'store_id' => ['0'],
+        ]);
+
+        $this->dispatch('backend/cms/block/save');
+
+        $response = $this->getResponse();
+        self::assertInstanceOf(\Magento\TestFramework\Response::class, $response);
+        self::assertSame(403, $response->getHttpResponseCode());
+        $request = $this->latest('admin', 'cms/block/save');
+        self::assertSame('denied', $request['outcome']);
+        $details = $this->service(EventDetails::class)->forActivities([$request['id'] => 'admin']);
+        $detail = $details[$request['id']] ?? null;
+        self::assertSame(
+            [Verb::TriedToChange, 'CMS block'],
+            [$detail?->getVerb(), $detail?->getSubjectTypeLabel()],
+            'A search shows who tried to change a CMS block'
+        );
+        $resource = $this->service(ResourceConnection::class);
+        self::assertFalse($resource->getConnection()->fetchOne(
+            $resource->getConnection()->select()
+                ->from($resource->getTableName('cms_block'), ['block_id'])
+                ->where('identifier = ?', 'aal-request-denied')
+        ), 'Nothing was saved.');
     }
 
     public function testPageViewsAreNotRecordedByDefault(): void

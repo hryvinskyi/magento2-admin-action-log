@@ -94,6 +94,21 @@ class EntityChangeRecorderTest extends TestCase
         self::assertSame('Global', $change['detail']['fields'][0]['scopeLabel'], 'A change naming no scope is global');
     }
 
+    public function testACreationIsRecordedFromNothingWhateverBeforeValuesItGives(): void
+    {
+        $this->recorder()->record(
+            $this->change()
+                ->withEntity('cms_block', '990001')
+                ->withOperation(EntityChangeInterface::OPERATION_CREATE)
+                ->withField('title', 'Footer', 'Footer')
+        );
+
+        $change = $this->latestChange('cms_block', '990001');
+        self::assertSame('CMS block created', $change['action']);
+        self::assertNull($change['detail']['fields'][0]['before']);
+        self::assertSame('Footer', $change['detail']['fields'][0]['after']);
+    }
+
     public function testSecretFieldsAreMaskedBeforeTheyAreStored(): void
     {
         $this->recorder()->record(

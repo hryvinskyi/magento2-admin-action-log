@@ -19,7 +19,7 @@ class ParameterSanitizerTest extends TestCase
     {
         $result = $this->sanitizer()->sanitize([
             'product' => ['name' => 'Chaz Kangaroo Hoodie', 'stock_data' => ['qty' => 100], 'status' => true],
-            'groups' => ['ups' => ['fields' => ['password' => ['value' => 'hunter2']]]],
+            'groups' => ['carrier' => ['fields' => ['password' => ['value' => 'hunter2']]]],
             'form_key' => 'aBcD1234',
             'key' => '0f9e8d7c',
             'back' => null,
@@ -29,7 +29,11 @@ class ParameterSanitizerTest extends TestCase
             ['name' => 'product[name]', 'value' => 'Chaz Kangaroo Hoodie', 'tag' => ''],
             ['name' => 'product[stock_data][qty]', 'value' => '100', 'tag' => ''],
             ['name' => 'product[status]', 'value' => '1', 'tag' => ''],
-            ['name' => 'groups[ups][fields][password][value]', 'value' => SanitizerInterface::MASK, 'tag' => 'masked'],
+            [
+                'name' => 'groups[carrier][fields][password][value]',
+                'value' => SanitizerInterface::MASK,
+                'tag' => 'masked',
+            ],
             ['name' => 'form_key', 'value' => SanitizerInterface::MASK, 'tag' => 'masked'],
             ['name' => 'key', 'value' => SanitizerInterface::MASK, 'tag' => 'masked'],
             ['name' => 'back', 'value' => '', 'tag' => ''],

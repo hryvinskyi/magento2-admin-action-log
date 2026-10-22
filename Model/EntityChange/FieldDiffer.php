@@ -14,7 +14,8 @@ use Hryvinskyi\AdminActionLog\Model\EntityChange\Comparison\FieldEquivalences;
 /**
  * Compares an entity's fields before and after a change
  *
- * A created entity had no values; a deleted one has none left. An update compares the fields the entity has now: a
+ * A created entity had only what it inherited (a setting's value before its first save in a scope), most entities
+ * nothing; a deleted one has none left. An update compares the fields the entity has now: a
  * field missing from the state after is not known to have been emptied, so it is not reported. No value and an
  * empty text are the same, and decimals compare by value ("52.00" equals "52"), while other numeric text compares as
  * text so "0123" still differs from "123". Beyond that, the rules FieldEquivalences holds may make two values the
@@ -37,7 +38,7 @@ class FieldDiffer
      * Each compared field with its values and whether it changed
      *
      * @param string $entityCode Tracked entity code of the record compared
-     * @param array<string,string|null> $before
+     * @param array<string,string|null> $before For a creation, what the entity inherited
      * @param array<string,string|null> $after
      * @param ChangeOperation $operation
      * @return list<FieldChange>
@@ -48,7 +49,7 @@ class FieldDiffer
 
         $changes = [];
         foreach ($fields as $field) {
-            $old = $operation === ChangeOperation::Create ? null : ($before[$field] ?? null);
+            $old = $before[$field] ?? null;
             $new = $operation === ChangeOperation::Delete ? null : ($after[$field] ?? null);
             $changes[] = [
                 'field' => (string) $field,

@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- A request the admin's role refused (403) that was sent to change or delete something is described on the search
+  page as "tried to change" or "tried to delete", with the kind of record and, when the request named it, the
+  record (`#5`), linked when it exists. A refused page view keeps its description.
+- An order comment links to its order, and a stored setting to its configuration section in its scope.
+- In a store that keeps stock without sources, the quantities a sale, a cancellation or a refund takes or puts back
+  are recorded as changes of the product.
+
+### Fixed
+- A setting saved for the first time in a scope is compared with the value it inherited (from a wider scope or the
+  module's default). Saving the value it already had is no change, and a new value is recorded as changed from the
+  inherited one. Before, the first save of a section recorded every field as created.
+- A request stopped by an unexpected error says so, and that the error is in the exception log, instead of showing
+  the error's own text, which may quote a query or a path. An error written for people is still shown.
+- The configuration history button is printed after its setting's control, outside the label Magento wraps around
+  the markup after a control, so a screen reader no longer reads "History of …" as part of the setting's name.
+- `AdminRequestTest` runs the access checks it inherits instead of skipping them.
+
 ## [1.1.0] - 2026-10-22
 
 ### Added

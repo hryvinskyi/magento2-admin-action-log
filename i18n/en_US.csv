@@ -111,3 +111,4 @@
 "Allow Multiple Boxes for Shipping","Allow Multiple Boxes for Shipping"
 "set automatically","set automatically"
 "Magento set it on save; the form did not ask for it.","Magento set it on save; the form did not ask for it."
+"The request stopped on an unexpected error. The error is in the exception log.","The request stopped on an unexpected error. The error is in the exception log."

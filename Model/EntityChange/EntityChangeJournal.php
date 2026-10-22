@@ -11,6 +11,7 @@ namespace Hryvinskyi\AdminActionLog\Model\EntityChange;
 
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityInterface;
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityPartInterface;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\Inherited\InheritedStateInterface;
 use Magento\Framework\Model\AbstractModel;
 use Psr\Log\LoggerInterface;
 
@@ -29,10 +30,19 @@ use Psr\Log\LoggerInterface;
  * state after the change is the part's to tell: one whose model may hold values its row never got reads them from
  * storage, so a save rolled back by an outer transaction, whose commit callback still fires on a later commit,
  * collapses to no change.
+ *
+ * A record created for an entity whose records inherit values (a setting saved for the first time in its scope) is
+ * compared with the state it inherited, taken when the save starts: saving the value it already had is no change, and
+ * a new value is recorded as changed from the inherited one.
  */
 class EntityChangeJournal
 {
     private const ID_MAX_LENGTH = 64;
+
+    /**
+     * @var array<string, InheritedStateInterface>
+     */
+    private array $inheritedStates = [];
 
     /**
      * @param RecordingRules $rules
@@ -41,6 +51,7 @@ class EntityChangeJournal
      * @param ValueNormalizer $normalizer
      * @param ChangeWriter $writer
      * @param LoggerInterface $logger
+     * @param array<mixed> $inheritedStates An InheritedStateInterface per tracked entity code
      */
     public function __construct(
         private readonly RecordingRules $rules,
@@ -48,8 +59,19 @@ class EntityChangeJournal
         private readonly ChangeBuffer $buffer,
         private readonly ValueNormalizer $normalizer,
         private readonly ChangeWriter $writer,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        array $inheritedStates = []
     ) {
+        foreach ($inheritedStates as $code => $inheritedState) {
+            if (!$inheritedState instanceof InheritedStateInterface) {
+                throw new \InvalidArgumentException(sprintf(
+                    'The inherited state of "%s" must implement %s.',
+                    $code,
+                    InheritedStateInterface::class
+                ));
+            }
+            $this->inheritedStates[(string) $code] = $inheritedState;
+        }
     }
 
     /**
@@ -157,6 +179,9 @@ class EntityChangeJournal
             $state === null && $part === null => ChangeOperation::Create,
             default => ChangeOperation::Update,
         };
+        if ($operation === ChangeOperation::Create) {
+            $state = ($this->inheritedStates[$entity->getCode()] ?? null)?->stateOf($model);
+        }
         $this->buffer->put(
             $model,
             $entity,
