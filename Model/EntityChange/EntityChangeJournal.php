@@ -9,65 +9,45 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Model\EntityChange;
 
-use Hryvinskyi\ActivityLog\Api\ActivityBuilderInterface;
-use Hryvinskyi\ActivityLog\Api\ActivityRecorderInterface;
-use Hryvinskyi\ActivityLog\Api\ActorContextInterface;
-use Hryvinskyi\ActivityLog\Api\ConfigInterface as ActivityLogConfig;
-use Hryvinskyi\ActivityLog\Api\Data\Outcome;
-use Hryvinskyi\ActivityLog\Api\Data\SubjectInterface;
-use Hryvinskyi\ActivityLog\Api\Data\SubjectInterfaceFactory;
-use Hryvinskyi\ActivityLog\Api\SanitizerInterface;
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityInterface;
-use Hryvinskyi\AdminActionLog\Model\ChannelCode;
-use Hryvinskyi\AdminActionLog\Model\Config;
-use Hryvinskyi\AdminActionLog\Model\RequestSubjects;
-use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
+use Hryvinskyi\AdminActionLog\Api\TrackedEntityPartInterface;
 use Magento\Framework\Model\AbstractModel;
 use Psr\Log\LoggerInterface;
 
 /**
- * Records entity changes: the state before is taken when a save or delete starts, the change is journaled once its
- * transaction commits
+ * Records entity changes of saved models: the state before is taken when a save or delete starts, the change is
+ * journaled once its transaction commits
  *
- * A change in which no field changed is not recorded. Secret fields are masked before anything is stored. Recording
- * never breaks the save: a failure to record is logged and the save goes on.
+ * A change in which no field changed is not recorded. Secret fields are masked before anything is stored, by the
+ * pool's rule (TrackedEntityPool::isSecretField()). Recording never breaks the save: a failure to record is logged and
+ * the save goes on. Whether a change is recorded at all (RecordingRules), which fields are secret and how it is
+ * written (ChangeWriter) are shared with the recorder of changes made without a model.
+ *
+ * A model that keeps part of an entity's data (a product's stock item) is recorded as a change of that entity, under
+ * the entity's id. Saving such a part for the first time is a change of the entity, never its creation, whatever
+ * state the part reports for before (none at all reads as an empty one), and deleting it records nothing. A part's
+ * state after the change is the part's to tell: one whose model may hold values its row never got reads them from
+ * storage, so a save rolled back by an outer transaction, whose commit callback still fires on a later commit,
+ * collapses to no change.
  */
 class EntityChangeJournal
 {
-    private const LABEL_MAX_LENGTH = 255;
     private const ID_MAX_LENGTH = 64;
-    private const ELLIPSIS = '…';
 
     /**
-     * @param Config $config
-     * @param ActivityLogConfig $activityLogConfig
+     * @param RecordingRules $rules
      * @param TrackedEntityPool $pool
-     * @param EntityTypeSettings $settings
      * @param ChangeBuffer $buffer
      * @param ValueNormalizer $normalizer
-     * @param FieldDiffer $differ
-     * @param ActorContextInterface $actorContext
-     * @param ActivityBuilderInterface $activityBuilder
-     * @param ActivityRecorderInterface $activityRecorder
-     * @param SubjectInterfaceFactory $subjectFactory
-     * @param EntityChangeStore $store
-     * @param RequestSubjects $requestSubjects
+     * @param ChangeWriter $writer
      * @param LoggerInterface $logger
      */
     public function __construct(
-        private readonly Config $config,
-        private readonly ActivityLogConfig $activityLogConfig,
+        private readonly RecordingRules $rules,
         private readonly TrackedEntityPool $pool,
-        private readonly EntityTypeSettings $settings,
         private readonly ChangeBuffer $buffer,
         private readonly ValueNormalizer $normalizer,
-        private readonly FieldDiffer $differ,
-        private readonly ActorContextInterface $actorContext,
-        private readonly ActivityBuilderInterface $activityBuilder,
-        private readonly ActivityRecorderInterface $activityRecorder,
-        private readonly SubjectInterfaceFactory $subjectFactory,
-        private readonly EntityChangeStore $store,
-        private readonly RequestSubjects $requestSubjects,
+        private readonly ChangeWriter $writer,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -107,13 +87,19 @@ class EntityChangeJournal
             return;
         }
 
-        $entity = $this->pool->get($pending['code']);
-        if ($entity === null || ($pending['operation'] !== ChangeOperation::Delete && !$model->isSaveAllowed())) {
+        $entity = $pending['entity'];
+        if ($pending['operation'] !== ChangeOperation::Delete && !$model->isSaveAllowed()) {
             return;
         }
 
         try {
-            $this->record($entity, $model, $pending['operation'], $pending['before']);
+            $this->record(
+                $entity,
+                $model,
+                $pending['part'],
+                $pending['operation'],
+                $pending['before']
+            );
         } catch (\Throwable $exception) {
             $this->logger->error(
                 sprintf('The change of %s could not be recorded.', $entity->getCode()),
@@ -151,15 +137,13 @@ class EntityChangeJournal
      */
     private function takeState(AbstractModel $model, bool $deleting): void
     {
-        if (!$this->config->isEntityEnabled() || !$this->activityLogConfig->isEnabled()) {
+        if (!$this->rules->isOn()) {
             return;
         }
 
-        $entity = $this->pool->match($model);
-        if ($entity === null
-            || $this->settings->modeOf($entity->getCode()) === DiffMode::Off
-            || !in_array($this->actorContext->current()->getType(), $this->config->getEntityActorTypes(), true)
-        ) {
+        $part = $deleting ? null : $this->pool->matchPart($model);
+        $entity = $part ?? $this->pool->match($model);
+        if ($entity === null || !$this->rules->records($entity->getCode())) {
             return;
         }
 
@@ -170,12 +154,13 @@ class EntityChangeJournal
 
         $operation = match (true) {
             $deleting => ChangeOperation::Delete,
-            $state === null => ChangeOperation::Create,
+            $state === null && $part === null => ChangeOperation::Create,
             default => ChangeOperation::Update,
         };
         $this->buffer->put(
             $model,
-            $entity->getCode(),
+            $entity,
+            $part,
             $operation,
             $state === null ? [] : $this->comparable($entity, $model, $state)
         );
@@ -186,6 +171,7 @@ class EntityChangeJournal
      *
      * @param TrackedEntityInterface $entity
      * @param AbstractModel $model
+     * @param TrackedEntityPartInterface|null $part The part of the entity the model is, if it is one
      * @param ChangeOperation $operation
      * @param array<string,string|null> $before
      * @return void
@@ -193,60 +179,22 @@ class EntityChangeJournal
     private function record(
         TrackedEntityInterface $entity,
         AbstractModel $model,
+        ?TrackedEntityPartInterface $part,
         ChangeOperation $operation,
         array $before
     ): void {
-        $after = $operation === ChangeOperation::Delete
-            ? []
-            : $this->comparable($entity, $model, $this->dataOf($model));
-        $changes = $this->differ->diff($before, $after, $operation);
-        $changed = array_values(array_filter($changes, static fn (array $change): bool => $change['changed']));
-        if ($changed === []) {
-            return;
-        }
-
-        $code = $entity->getCode();
-        $mode = $this->settings->modeOf($code);
-        $kept = $mode === DiffMode::Snapshot ? $changes : $changed;
-        $entityId = $this->entityId($model);
-        $name = $this->clip($entity->describe($model));
-        $subject = $this->subject($code, $entityId, $this->withFields($name, array_column($changed, 'field')));
-
-        $activityId = $this->activityRecorder->record(
-            $this->activityBuilder->build(
-                ChannelCode::ENTITY,
-                sprintf('%s %s', $entity->getLabel(), $operation->verb()),
-                Outcome::Success,
-                $subject
-            )
-        );
-        if ($activityId === null) {
-            return;
-        }
-
-        $fields = [];
-        foreach ($kept as $change) {
-            $masked = $entity->isSecretField($model, $change['field']);
-            $fields[] = [
-                'field' => $change['field'],
-                'before' => $masked && $change['before'] !== null ? SanitizerInterface::MASK : $change['before'],
-                'after' => $masked && $change['after'] !== null ? SanitizerInterface::MASK : $change['after'],
-                'changed' => $change['changed'],
-                'masked' => $masked,
-            ];
-        }
-
-        $this->store->save(
-            $activityId,
-            $code,
-            $entityId,
+        $this->writer->write(
+            $entity,
+            $this->entityId($model, $part),
             $operation,
-            $mode,
-            count($changes) - count($changed),
+            $before,
+            $operation === ChangeOperation::Delete
+                ? []
+                : $this->comparable($entity, $model, $this->after($model, $part)),
+            static fn (): string => $entity->describe($model),
             $entity->scope($model),
-            $fields
+            fn (string $field): bool => $this->pool->isSecretField($entity, $field, $model)
         );
-        $this->requestSubjects->add($this->subject($code, $entityId, $name));
     }
 
     /**
@@ -270,6 +218,18 @@ class EntityChangeJournal
     }
 
     /**
+     * The entity's data after the change: the part's to tell for a part, else the model's own
+     *
+     * @param AbstractModel $model
+     * @param TrackedEntityPartInterface|null $part
+     * @return array<string, mixed>
+     */
+    private function after(AbstractModel $model, ?TrackedEntityPartInterface $part): array
+    {
+        return $part === null ? $this->dataOf($model) : $part->stateAfter($model);
+    }
+
+    /**
      * The model data keyed by field name
      *
      * @param AbstractModel $model
@@ -287,56 +247,18 @@ class EntityChangeJournal
     }
 
     /**
-     * The model id as a subject id, or null
+     * The id the change is recorded under, as a subject id, or null when there is none
+     *
+     * It is the entity's id when the model is a part of it, else the model's own.
      *
      * @param AbstractModel $model
+     * @param TrackedEntityPartInterface|null $part
      * @return string|null
      */
-    private function entityId(AbstractModel $model): ?string
+    private function entityId(AbstractModel $model, ?TrackedEntityPartInterface $part): ?string
     {
-        $id = $model->getId();
+        $id = $part === null ? $model->getId() : $part->entityId($model);
 
         return is_scalar($id) && (string) $id !== '' ? mb_substr((string) $id, 0, self::ID_MAX_LENGTH) : null;
-    }
-
-    /**
-     * "Product #1245 · price, special_price", cut to what a subject label holds; a field the name already shows
-     * (a setting named by its path) is not repeated
-     *
-     * @param string $name
-     * @param list<string> $fields
-     * @return string
-     */
-    private function withFields(string $name, array $fields): string
-    {
-        $fields = array_values(array_filter($fields, static fn (string $field): bool => !str_contains($name, $field)));
-
-        return $fields === [] ? $name : $this->clip($name . ' · ' . implode(', ', $fields));
-    }
-
-    /**
-     * Text cut to what a subject label holds
-     *
-     * @param string $text
-     * @return string
-     */
-    private function clip(string $text): string
-    {
-        return mb_strlen($text) <= self::LABEL_MAX_LENGTH
-            ? $text
-            : mb_substr($text, 0, self::LABEL_MAX_LENGTH - 1) . self::ELLIPSIS;
-    }
-
-    /**
-     * A subject through its factory
-     *
-     * @param string $type
-     * @param string|null $id
-     * @param string $label
-     * @return SubjectInterface
-     */
-    private function subject(string $type, ?string $id, string $label): SubjectInterface
-    {
-        return $this->subjectFactory->create(['type' => $type, 'label' => $label, 'id' => $id]);
     }
 }

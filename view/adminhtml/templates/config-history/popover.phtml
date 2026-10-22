@@ -1,0 +1,98 @@
+<?php
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+declare(strict_types=1);
+
+use Hryvinskyi\ActivityLog\Api\IconsInterface;
+use Hryvinskyi\AdminActionLog\ViewModel\ConfigHistoryPopover;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/**
+ * The settings' history on Stores › Configuration: the popover's config, and the templates its script clones to show
+ * one setting's changes below the setting's row. The script fills the parts carrying data-slot names with
+ * textContent; nothing in the markup is data.
+ *
+ * @var Template $block
+ * @var Escaper $escaper
+ */
+
+$popover = $block->getData('popover');
+if (!$popover instanceof ConfigHistoryPopover) {
+    return;
+}
+$config = $popover->configJson();
+if ($config === null) {
+    return;
+}
+$icons = $block->getData('icons');
+$icon = static fn (string $id, string $class): string => $icons instanceof IconsInterface
+    ? $icons->render($id, $class)
+    : '';
+$copyIcon = $icon('Hryvinskyi_AdminActionLog::copy', 'config-history-popover__copy-icon');
+$closeIcon = $icon('Hryvinskyi_ActivityLog::x', 'config-history-popover__close-icon');
+$logIcon = $icon('Hryvinskyi_AdminActionLog::external-link', 'config-history-popover__log-icon');
+$note = __('Values shown as the admin sees them (Yes/No, labels), not raw 0/1.');
+?>
+<div class="config-history-assets" data-role="config-history" hidden
+     data-mage-init='<?= $escaper->escapeHtmlAttr('{"Hryvinskyi_AdminActionLog/js/config-history/popover": {}}') ?>'>
+    <script type="application/json" data-role="config-history-config">
+        <?= /* @noEscape */ $config ?>
+    </script>
+    <template data-template="config-history-popover">
+        <div class="config-history-popover" role="dialog" tabindex="-1">
+            <span class="config-history-popover__arrow" data-slot="arrow" aria-hidden="true"></span>
+            <div class="config-history-popover__head">
+                <div class="config-history-popover__heading">
+                    <div class="config-history-popover__title" data-slot="title"></div>
+                    <div class="config-history-popover__meta">
+                        <span class="config-history-popover__path" data-slot="path"></span>
+                        <button type="button" class="config-history-popover__copy" data-action="copy">
+                            <?= /* @noEscape */ $copyIcon ?>
+                            <span data-slot="copy-label"></span>
+                        </button>
+                        <span class="config-history-popover__count" data-slot="count" aria-live="polite"></span>
+                    </div>
+                </div>
+                <button type="button" class="config-history-popover__close" data-action="close"
+                        aria-label="<?= $escaper->escapeHtmlAttr(__('Close')) ?>">
+                    <?= /* @noEscape */ $closeIcon ?>
+                </button>
+            </div>
+            <div class="config-history-popover__state" data-slot="state" hidden>
+                <span data-slot="state-text"></span>
+                <button type="button" class="config-history-popover__retry" data-action="retry" hidden></button>
+            </div>
+            <div class="config-history-popover__rows" data-slot="rows"></div>
+            <div class="config-history-popover__foot">
+                <span class="config-history-popover__note">
+                    <?= $escaper->escapeHtml($note) ?>
+                </span>
+                <a class="config-history-popover__log" data-slot="log-link" href="#">
+                    <?= $escaper->escapeHtml(__('Open in Activity Log')) ?>
+                    <?= /* @noEscape */ $logIcon ?>
+                </a>
+            </div>
+        </div>
+    </template>
+    <template data-template="config-history-row">
+        <div class="config-history-row">
+            <div class="config-history-row__when">
+                <div class="config-history-row__time" data-slot="when"></div>
+                <div class="config-history-row__ago" data-slot="ago"></div>
+            </div>
+            <div class="config-history-row__body">
+                <div class="config-history-row__who" data-slot="who"></div>
+                <div class="config-history-row__values" data-slot="values">
+                    <span class="config-history-row__value config-history-row__value--before" data-slot="before"></span>
+                    <span class="config-history-row__arrow">→</span>
+                    <span class="config-history-row__value config-history-row__value--after" data-slot="after"></span>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>

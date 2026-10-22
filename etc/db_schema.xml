@@ -60,6 +60,8 @@
         <column xsi:type="mediumtext" name="after_value" nullable="true" comment="Value after"/>
         <column xsi:type="boolean" name="is_changed" nullable="false" default="false" comment="Value changed"/>
         <column xsi:type="boolean" name="is_masked" nullable="false" default="false" comment="Values masked"/>
+        <column xsi:type="boolean" name="is_automatic" nullable="false" default="false"
+                comment="Set automatically, not asked for by the admin's form"/>
         <constraint xsi:type="primary" referenceId="PRIMARY">
             <column name="field_row_id"/>
         </constraint>
@@ -67,6 +69,11 @@
                     table="hryvinskyi_admin_action_log_entity_field" column="activity_id"
                     referenceTable="hryvinskyi_admin_action_log_entity" referenceColumn="activity_id" onDelete="CASCADE"/>
         <index referenceId="HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_ACTIVITY_ID" indexType="btree">
+            <column name="activity_id"/>
+        </index>
+        <index referenceId="IDX_12348AF67FF959EDA1DA6423241267BB" indexType="btree">
+            <column name="field"/>
+            <column name="is_changed"/>
             <column name="activity_id"/>
         </index>
     </table>

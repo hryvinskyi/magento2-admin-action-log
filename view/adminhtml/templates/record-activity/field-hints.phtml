@@ -1,0 +1,38 @@
+<?php
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+declare(strict_types=1);
+
+use Hryvinskyi\AdminActionLog\ViewModel\RecordFieldHints;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/**
+ * The hints under a record's recently changed fields: an empty element whose script reads the JSON beside it and
+ * writes each hint as text under its field. The JSON is printed with tags hex-escaped, so a stored value can neither
+ * end the script element nor be read as markup or as a template.
+ *
+ * @var Template $block
+ * @var Escaper $escaper
+ */
+
+$hints = $block->getData('hints');
+if (!$hints instanceof RecordFieldHints) {
+    return;
+}
+$config = $hints->configJson();
+if ($config === null) {
+    return;
+}
+$init = '{"Hryvinskyi_AdminActionLog/js/record-activity/field-hints-mount": {}}';
+?>
+<div data-role="record-activity-hints" hidden
+     data-mage-init='<?= $escaper->escapeHtmlAttr($init) ?>'>
+    <script type="application/json" data-role="record-activity-hints-config">
+        <?= /* @noEscape */ $config ?>
+    </script>
+</div>

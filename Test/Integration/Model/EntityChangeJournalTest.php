@@ -12,16 +12,23 @@ namespace Hryvinskyi\AdminActionLog\Test\Integration\Model;
 use Hryvinskyi\ActivityLog\Api\SanitizerInterface;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\ChangeOperation;
 use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
+use Magento\Catalog\Api\CategoryRepositoryInterface;
+use Magento\Catalog\Api\Data\ProductInterfaceFactory;
+use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\Catalog\Model\CategoryFactory;
+use Magento\Catalog\Test\Fixture\Attribute as AttributeFixture;
 use Magento\Cms\Api\BlockRepositoryInterface;
 use Magento\Cms\Model\Block;
 use Magento\Cms\Model\BlockFactory;
 use Magento\Config\Model\Config\Backend\Encrypted;
 use Magento\Config\Model\ResourceModel\Config\Data as ConfigData;
+use Magento\Eav\Model\Entity\Attribute\Source\Boolean;
 use Magento\Framework\App\Config\Value;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\TransactionFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\TestFramework\Fixture\Config;
+use Magento\TestFramework\Fixture\DataFixture;
 use Magento\TestFramework\Fixture\DbIsolation;
 use Magento\TestFramework\Helper\Bootstrap;
 use PHPUnit\Framework\TestCase;
@@ -41,12 +48,136 @@ class EntityChangeJournalTest extends TestCase
     {
         $resource = self::service(ResourceConnection::class);
         $connection = $resource->getConnection();
+        $connection->delete($resource->getTableName('catalog_category_entity'), [
+            'entity_id IN (?)' => $connection->select()
+                ->from($resource->getTableName('catalog_category_entity_varchar'), ['entity_id'])
+                ->where('value = ?', 'Aal Label Gear'),
+        ]);
+        $connection->delete($resource->getTableName('url_rewrite'), ['request_path LIKE ?' => 'aal-label-%']);
         $connection->delete($resource->getTableName('cms_block'), ['identifier LIKE ?' => 'aal-%']);
         $connection->delete($resource->getTableName('core_config_data'), ['path LIKE ?' => 'hryvinskyi_test/%']);
+        $connection->delete($resource->getTableName('catalog_product_entity'), ['sku = ?' => 'aal-label-tote']);
         $connection->delete($resource->getTableName('hryvinskyi_activity_log'), [
             'channel = ?' => 'entity',
-            '(subject_label LIKE \'CMS block aal-%\' OR subject_label LIKE \'Config value hryvinskyi_test/%\')',
+            '(subject_label LIKE \'CMS block aal-%\' OR subject_label LIKE \'Config value hryvinskyi_test/%\''
+                . ' OR subject_label LIKE \'Product aal-label-tote%\''
+                . ' OR subject_label LIKE \'Category Aal Label Gear%\')',
         ]);
+    }
+
+    public function testProductsAndCategoriesAreNamedByWhatPeopleKnow(): void
+    {
+        $category = self::service(CategoryFactory::class)->create();
+        $category->setName('Aal Label Gear')->setParentId(2)->setIsActive(true);
+        $category = self::service(CategoryRepositoryInterface::class)->save($category);
+        $categoryId = (int) $category->getId();
+
+        $product = self::service(ProductInterfaceFactory::class)->create();
+        $product->setSku('aal-label-tote')
+            ->setName('Aal Label Tote')
+            ->setAttributeSetId(4)
+            ->setTypeId('simple')
+            ->setPrice(10)
+            ->setStatus(1)
+            ->setVisibility(4);
+        $productId = (string) self::service(ProductRepositoryInterface::class)->save($product)->getId();
+
+        $categoryChange = $this->latestChange('category', (string) $categoryId);
+        self::assertStringStartsWith(
+            sprintf('Category Aal Label Gear (#%d) · ', $categoryId),
+            $categoryChange['subject'],
+            'The name, then the fields that changed'
+        );
+        self::assertNotContains(
+            'entity_id',
+            array_column($this->fields($categoryChange['detail']), 'field'),
+            'The id names the subject; it is not a field of the change.'
+        );
+        self::assertStringStartsWith(
+            'Product aal-label-tote · Aal Label Tote · ',
+            $this->latestChange('product', $productId)['subject']
+        );
+    }
+
+    #[DataFixture(AttributeFixture::class, [
+        'attribute_code' => 'aal_flag',
+        'frontend_input' => 'boolean',
+        'backend_type' => 'int',
+        'source_model' => Boolean::class,
+    ])]
+    public function testAYesNoFieldSavedAsNoWhereItHeldNoValueIsNoChange(): void
+    {
+        $repository = self::service(ProductRepositoryInterface::class);
+        $product = self::service(ProductInterfaceFactory::class)->create();
+        $product->setSku('aal-label-tote')
+            ->setName('Aal Label Tote')
+            ->setAttributeSetId(4)
+            ->setTypeId('simple')
+            ->setPrice(10)
+            ->setStatus(1)
+            ->setVisibility(4);
+        $productId = (string) $repository->save($product)->getId();
+
+        $product = $repository->get('aal-label-tote', true, 0, true);
+        $product->setCustomAttribute('aal_flag', '0');
+        $product->setPrice(12);
+        $repository->save($product);
+
+        $saved = $this->fields($this->latestChange('product', $productId)['detail']);
+        self::assertContains('price', array_column($saved, 'field'));
+        self::assertNotContains(
+            'aal_flag',
+            array_column($saved, 'field'),
+            'A form saving "No" where nothing was set changes nothing'
+        );
+
+        $product = $repository->get('aal-label-tote', true, 0, true);
+        $product->setCustomAttribute('aal_flag', '1');
+        $repository->save($product);
+
+        self::assertSame(
+            [['field' => 'aal_flag', 'before' => '0', 'after' => '1', 'changed' => true]],
+            $this->fields($this->latestChange('product', $productId)['detail']),
+            'Yes is a change'
+        );
+    }
+
+    public function testASaveThatOnlyRewritesLineEndingsLeavesTheTextUnchanged(): void
+    {
+        $repository = self::service(ProductRepositoryInterface::class);
+        $product = self::service(ProductInterfaceFactory::class)->create();
+        $product->setSku('aal-label-tote')
+            ->setName('Aal Label Tote')
+            ->setAttributeSetId(4)
+            ->setTypeId('simple')
+            ->setPrice(10)
+            ->setStatus(1)
+            ->setVisibility(4)
+            ->setCustomAttribute('description', "<p>Roomy tote.</p>\n<p>Two straps.</p>");
+        $productId = (string) $repository->save($product)->getId();
+
+        $product = $repository->get('aal-label-tote', true, 0, true);
+        $product->setCustomAttribute('description', "<p>Roomy tote.</p>\r\n<p>Two straps.</p>");
+        $product->setPrice(12);
+        $repository->save($product);
+
+        $saved = $this->fields($this->latestChange('product', $productId)['detail']);
+        self::assertContains('price', array_column($saved, 'field'));
+        self::assertNotContains(
+            'description',
+            array_column($saved, 'field'),
+            'A form sending the text back with "\\r\\n" line breaks changed no word of it'
+        );
+
+        $product = $repository->get('aal-label-tote', true, 0, true);
+        $product->setCustomAttribute('description', "<p>Roomy tote.</p>\r\n<p>Three straps.</p>");
+        $repository->save($product);
+
+        self::assertSame(
+            ['description'],
+            array_column($this->fields($this->latestChange('product', $productId)['detail']), 'field'),
+            'A changed word is a change'
+        );
     }
 
     public function testCreatingAndChangingABlockIsJournaledFieldByField(): void

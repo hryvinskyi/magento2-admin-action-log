@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<!--
+    A record's activity panel on its edit page, with what the activity timeline draws with. Added only through the
+    handle of one kind of record, which names the panel's view model; that handle is added to an edit page only for an
+    existing record and an admin who may read the activity log.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="hryvinskyi_activitylog_timeline_assets"/>
+    <head>
+        <css src="Hryvinskyi_AdminActionLog::css/record-activity.css"/>
+    </head>
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template" name="hryvinskyi.record.activity"
+                   template="Hryvinskyi_AdminActionLog::record-activity/panel.phtml">
+                <arguments>
+                    <argument name="icons" xsi:type="object">Hryvinskyi\ActivityLog\Api\IconsInterface</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

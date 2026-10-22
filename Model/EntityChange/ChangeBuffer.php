@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Model\EntityChange;
 
+use Hryvinskyi\AdminActionLog\Api\TrackedEntityInterface;
+use Hryvinskyi\AdminActionLog\Api\TrackedEntityPartInterface;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\ObjectManager\ResetAfterRequestInterface;
 
@@ -17,7 +19,15 @@ use Magento\Framework\ObjectManager\ResetAfterRequestInterface;
  *
  * A rolled-back transaction never commits, so its state is simply never taken out: the change leaves no record.
  *
- * @phpstan-type Pending array{code: string, operation: ChangeOperation, before: array<string, string|null>}
+ * A state taken of a part of an entity holds the part too, which tells the id of the entity the change is recorded
+ * under.
+ *
+ * @phpstan-type Pending array{
+ *     entity: TrackedEntityInterface,
+ *     part: TrackedEntityPartInterface|null,
+ *     operation: ChangeOperation,
+ *     before: array<string, string|null>
+ * }
  */
 class ChangeBuffer implements ResetAfterRequestInterface
 {
@@ -30,14 +40,25 @@ class ChangeBuffer implements ResetAfterRequestInterface
      * Hold the state of the model until its transaction commits
      *
      * @param AbstractModel $model
-     * @param string $code
+     * @param TrackedEntityInterface $entity The entity whose change it is
+     * @param TrackedEntityPartInterface|null $part The part of the entity the model is, if it is one
      * @param ChangeOperation $operation
      * @param array<string,string|null> $before
      * @return void
      */
-    public function put(AbstractModel $model, string $code, ChangeOperation $operation, array $before): void
-    {
-        $this->pending[spl_object_id($model)] = ['code' => $code, 'operation' => $operation, 'before' => $before];
+    public function put(
+        AbstractModel $model,
+        TrackedEntityInterface $entity,
+        ?TrackedEntityPartInterface $part,
+        ChangeOperation $operation,
+        array $before
+    ): void {
+        $this->pending[spl_object_id($model)] = [
+            'entity' => $entity,
+            'part' => $part,
+            'operation' => $operation,
+            'before' => $before,
+        ];
     }
 
     /**

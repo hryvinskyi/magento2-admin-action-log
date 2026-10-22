@@ -16,6 +16,7 @@ use Hryvinskyi\AdminActionLog\Model\Config;
  *
  * Requests that change something are recorded; requests that only read are recorded when the settings ask for it.
  * A route matching an ignored pattern ("mui/*") is never recorded: those are the screens' own background calls.
+ * Routes and patterns are compared without regard to case, however the pattern was typed.
  */
 class RequestPolicy
 {
@@ -54,7 +55,7 @@ class RequestPolicy
 
         $route = strtolower($route);
         foreach ($this->config->getIgnoredRoutes() as $pattern) {
-            if (fnmatch($pattern, $route)) {
+            if (fnmatch(strtolower($pattern), $route)) {
                 return false;
             }
         }

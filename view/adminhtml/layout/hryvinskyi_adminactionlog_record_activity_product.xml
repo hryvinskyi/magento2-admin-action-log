@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="hryvinskyi_adminactionlog_record_activity"/>
+    <body>
+        <referenceBlock name="hryvinskyi.record.activity">
+            <arguments>
+                <argument name="panel" xsi:type="object">Hryvinskyi\AdminActionLog\ViewModel\ProductActivityPanel</argument>
+            </arguments>
+        </referenceBlock>
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template" name="hryvinskyi.record.activity.hints"
+                   template="Hryvinskyi_AdminActionLog::record-activity/field-hints.phtml">
+                <arguments>
+                    <argument name="hints" xsi:type="object">Hryvinskyi\AdminActionLog\ViewModel\ProductFieldHints</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

@@ -1,0 +1,377 @@
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+/*
+ * The settings' history on Stores › Configuration: the clock button after each setting's control (an orange dot for
+ * a change of the last days, muted when the setting never changed), and the popover below the setting's row.
+ */
+
+/* The button sits right of the control, inside the value column, level with the control's first line */
+.accordion .config td.value:has(.config-history) {
+    position: relative;
+    padding-right: 4.2rem;
+}
+
+.accordion .config td.value label.addafter:has(> .config-history) {
+    display: contents;
+}
+
+.config-history {
+    position: absolute;
+    top: 2.35rem;
+    right: 0.4rem;
+    display: inline-flex;
+}
+
+.config-history__button {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 3rem;
+    height: 3rem;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #adadad;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: none;
+    color: #514943;
+    cursor: pointer;
+}
+
+.config-history__button--never {
+    border-color: #e3e3e3;
+    color: #adadad;
+}
+
+.config-history__button:hover {
+    border-color: #8c8c8c;
+    background: #fff;
+    color: #303030;
+}
+
+.config-history__button:focus-visible {
+    outline: 2px solid #007bdb;
+    outline-offset: 1px;
+}
+
+.config-history__button[aria-expanded="true"] {
+    border-color: #007bdb;
+    background: #e5f7fe;
+    color: #514943;
+}
+
+.config-history__icon {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.config-history__dot {
+    position: absolute;
+    top: -0.4rem;
+    right: -0.4rem;
+    box-sizing: content-box;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #eb5202;
+}
+
+/* The popover */
+.config-history-popover {
+    position: absolute;
+    z-index: 30;
+    box-sizing: border-box;
+    max-width: 56rem;
+    border: 1px solid #adadad;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    color: #303030;
+    font-size: 1.3rem;
+    line-height: 1.36;
+    text-align: left;
+}
+
+.config-history-popover:focus {
+    outline: none;
+}
+
+.config-history-popover:focus-visible {
+    outline: 2px solid #007bdb;
+}
+
+.config-history-popover__arrow {
+    position: absolute;
+    top: -0.7rem;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-top: 1px solid #adadad;
+    border-left: 1px solid #adadad;
+    background: #fff;
+    transform: rotate(45deg);
+}
+
+.config-history-popover__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.2rem;
+    padding: 1.2rem 1.4rem 1rem;
+    border-bottom: 1px solid #e3e3e3;
+}
+
+.config-history-popover__heading {
+    min-width: 0;
+}
+
+.config-history-popover__title {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.config-history-popover__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem;
+    margin-top: 0.3rem;
+    color: #6b6b6b;
+    font-size: 1.2rem;
+}
+
+.config-history-popover__count {
+    flex-basis: 100%;
+}
+
+.config-history-popover__path {
+    color: #303030;
+    font-family: Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.config-history-popover__copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 2rem;
+    margin: 0;
+    padding: 0 0.6rem;
+    border: 1px solid #e3e3e3;
+    border-radius: 3px;
+    background: #f3f3f3;
+    box-shadow: none;
+    color: #514943;
+    font-size: 1.1rem;
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.config-history-popover__copy:hover {
+    border-color: #adadad;
+    background: #fff;
+}
+
+.config-history-popover__copy-icon {
+    width: 1rem;
+    height: 1rem;
+}
+
+.config-history-popover__close {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 2.8rem;
+    height: 2.8rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: #514943;
+    cursor: pointer;
+}
+
+.config-history-popover__close:hover {
+    background: none;
+    color: #303030;
+}
+
+.config-history-popover__close:focus-visible,
+.config-history-popover__copy:focus-visible,
+.config-history-popover__retry:focus-visible,
+.config-history-popover__log:focus-visible {
+    outline: 2px solid #007bdb;
+}
+
+.config-history-popover__close-icon {
+    width: 1.8rem;
+    height: 1.8rem;
+}
+
+.config-history-popover__state {
+    padding: 2.2rem 1.4rem;
+    color: #6b6b6b;
+    text-align: center;
+}
+
+.config-history-popover__state[hidden] {
+    display: none;
+}
+
+.config-history-popover__retry {
+    margin-left: 0.8rem;
+}
+
+.config-history-popover__rows {
+    max-height: 32rem;
+    overflow: auto;
+}
+
+.config-history-popover__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.2rem;
+    padding: 1rem 1.4rem;
+    border-top: 1px solid #e3e3e3;
+    background: #f8f8f8;
+    font-size: 1.25rem;
+}
+
+.config-history-popover__note {
+    color: #6b6b6b;
+}
+
+.config-history-popover__log {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+}
+
+.config-history-popover__log-icon {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
+/* One change */
+.config-history-row {
+    display: grid;
+    grid-template-columns: 11.8rem minmax(0, 1fr);
+    gap: 0 1.2rem;
+    align-items: start;
+    padding: 1rem 1.4rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.config-history-row__time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.config-history-row__ago {
+    color: #6b6b6b;
+    font-size: 1.15rem;
+}
+
+.config-history-row__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.config-history-row__who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.config-history-row__via-word {
+    color: #6b6b6b;
+}
+
+.config-history-row__via {
+    display: inline-block;
+    padding: 0 0.5rem;
+    border-radius: 3px;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.6rem;
+}
+
+.config-history-row__channel {
+    display: inline-flex;
+    padding: 0 0.6rem;
+    border-radius: 3px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.config-history-row__via--unknown,
+.config-history-row__channel--unknown {
+    background: #ececec;
+    color: #4d4d4d;
+}
+
+.config-history-row__scope {
+    padding: 0 0.6rem;
+    border: 1px solid #e3e3e3;
+    border-radius: 3px;
+    background: #f8f8f8;
+    color: #514943;
+    font-size: 1.15rem;
+}
+
+.config-history-row__values {
+    overflow-wrap: anywhere;
+}
+
+.config-history-row__values[hidden] {
+    display: none;
+}
+
+.config-history-row__value {
+    display: inline;
+    padding: 0.1rem 0.5rem;
+    border-radius: 2px;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.config-history-row__value--before.config-history-row__value--value {
+    background: #fbe4e2;
+    color: #8a1f18;
+    text-decoration: line-through;
+}
+
+.config-history-row__value--after.config-history-row__value--value {
+    background: #e3f3e6;
+    color: #145c2c;
+    font-weight: 600;
+}
+
+.config-history-row__value--empty {
+    color: #6b6b6b;
+    font-style: italic;
+}
+
+.config-history-row__value--masked {
+    background: #f3f3f3;
+    color: #514943;
+    font-family: Menlo, Consolas, monospace;
+    letter-spacing: 0.1rem;
+}
+
+.config-history-row__arrow {
+    color: #6b6b6b;
+}

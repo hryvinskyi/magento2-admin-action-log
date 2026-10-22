@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Test\Unit\Model\EntityChange;
 
+use Hryvinskyi\ActivityLog\Api\SanitizerInterface;
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityInterface;
 use Hryvinskyi\AdminActionLog\Model\Config;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\DiffMode;
@@ -67,6 +68,9 @@ class EntityTypeSettingsTest extends TestCase
             $entities[$code] = $entity;
         }
 
-        return new EntityTypeSettings(new Config($scopeConfig, new Json()), new TrackedEntityPool($entities));
+        return new EntityTypeSettings(
+            new Config($scopeConfig, new Json()),
+            new TrackedEntityPool($this->createStub(SanitizerInterface::class), $entities)
+        );
     }
 }

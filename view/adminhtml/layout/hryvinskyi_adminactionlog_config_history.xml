@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<!--
+    The settings' history on Stores › Configuration: the popover's config and templates, with what the activity
+    timeline draws with. Added to the configuration page only for an admin who may read the activity log; each
+    setting's button is added by the field renderer's plugin only on a page that has this handle.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="hryvinskyi_activitylog_timeline_assets"/>
+    <head>
+        <css src="Hryvinskyi_AdminActionLog::css/config-history.css"/>
+    </head>
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template" name="hryvinskyi.config.history"
+                   template="Hryvinskyi_AdminActionLog::config-history/popover.phtml">
+                <arguments>
+                    <argument name="popover" xsi:type="object">Hryvinskyi\AdminActionLog\ViewModel\ConfigHistoryPopover</argument>
+                    <argument name="icons" xsi:type="object">Hryvinskyi\ActivityLog\Api\IconsInterface</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

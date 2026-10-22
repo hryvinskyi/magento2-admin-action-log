@@ -45,10 +45,13 @@
             "before_value": true,
             "after_value": true,
             "is_changed": true,
-            "is_masked": true
+            "is_masked": true,
+            "is_automatic": true
         },
         "index": {
-            "HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_ACTIVITY_ID": true
+            "HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_ACTIVITY_ID": true,
+            "HRYVINSKYI_ADMIN_ACTION_LOG_ENTITY_FIELD_FIELD_ACTIVITY_ID": true,
+            "IDX_12348AF67FF959EDA1DA6423241267BB": true
         },
         "constraint": {
             "PRIMARY": true,

@@ -24,6 +24,18 @@ use Magento\TestFramework\TestCase\AbstractBackendController;
  */
 class ActivityPanelsTest extends AbstractBackendController
 {
+    /**
+     * The inherited access tests: an admin who may not view the log is refused the page the panels show on
+     *
+     * @var string
+     */
+    protected $resource = 'Hryvinskyi_ActivityLog::view';
+
+    /**
+     * @var string
+     */
+    protected $uri = 'backend/activitylog/activity/view/id/0';
+
     public function testAnAdminRequestShowsItsRouteParametersResponseAndMessages(): void
     {
         $id = $this->insertActivity('admin', 'catalog/product/save', 'Product #1188');
@@ -74,13 +86,29 @@ class ActivityPanelsTest extends AbstractBackendController
             1,
             $scope,
             [
-                ['field' => 'price', 'before' => '49.00', 'after' => '39.00', 'changed' => true, 'masked' => false],
+                [
+                    'field' => 'price',
+                    'before' => '49.00',
+                    'after' => '39.00',
+                    'changed' => true,
+                    'masked' => false,
+                    'automatic' => false,
+                ],
                 [
                     'field' => 'special_price',
                     'before' => null,
                     'after' => '34.90',
                     'changed' => true,
                     'masked' => false,
+                    'automatic' => false,
+                ],
+                [
+                    'field' => 'image_label',
+                    'before' => 'Joust Duffle Bag',
+                    'after' => null,
+                    'changed' => true,
+                    'masked' => false,
+                    'automatic' => true,
                 ],
                 [
                     'field' => 'meta_title',
@@ -88,6 +116,7 @@ class ActivityPanelsTest extends AbstractBackendController
                     'after' => 'Joust Duffle Bag',
                     'changed' => false,
                     'masked' => false,
+                    'automatic' => false,
                 ],
             ]
         );
@@ -102,6 +131,11 @@ class ActivityPanelsTest extends AbstractBackendController
         self::assertStringContainsString('(empty)', $html);
         self::assertStringContainsString('Show unchanged fields (1)', $html);
         self::assertMatchesRegularExpression('/data-field="meta_title"\s+data-changed="0"/', $html);
+        self::assertSame(1, substr_count($html, 'admin-action-tag--automatic'), 'Only the field set automatically');
+        self::assertMatchesRegularExpression(
+            '/data-field="image_label".*?admin-action-tag--automatic.*?set automatically/s',
+            $html
+        );
     }
 
     /**

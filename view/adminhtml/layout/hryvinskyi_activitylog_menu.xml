@@ -15,7 +15,7 @@
                 <argument name="items" xsi:type="array">
                     <item name="admin_requests" xsi:type="array">
                         <item name="label" xsi:type="string" translate="true">Admin Requests</item>
-                        <item name="route" xsi:type="string">activitylog/activity/index</item>
+                        <item name="route" xsi:type="string">hryvinskyi_activitylog/activity/index</item>
                         <item name="route_params" xsi:type="array">
                             <item name="_query" xsi:type="array">
                                 <item name="channel" xsi:type="string">admin</item>
@@ -27,7 +27,7 @@
                     </item>
                     <item name="entity_changes" xsi:type="array">
                         <item name="label" xsi:type="string" translate="true">Entity Changes</item>
-                        <item name="route" xsi:type="string">activitylog/activity/index</item>
+                        <item name="route" xsi:type="string">hryvinskyi_activitylog/activity/index</item>
                         <item name="route_params" xsi:type="array">
                             <item name="_query" xsi:type="array">
                                 <item name="channel" xsi:type="string">entity</item>

@@ -9,6 +9,8 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
     <preference for="Hryvinskyi\AdminActionLog\Api\Data\EntityScopeInterface" type="Hryvinskyi\AdminActionLog\Model\Data\EntityScope"/>
+    <preference for="Hryvinskyi\AdminActionLog\Api\Data\EntityChangeInterface" type="Hryvinskyi\AdminActionLog\Model\Data\EntityChange"/>
+    <preference for="Hryvinskyi\AdminActionLog\Api\EntityChangeRecorderInterface" type="Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeRecorder"/>
 
     <virtualType name="Hryvinskyi\AdminActionLog\Model\Channel\AdminChannel" type="Hryvinskyi\ActivityLog\Model\Channel\Channel">
         <arguments>
@@ -85,6 +87,80 @@
                 <item name="media_gallery" xsi:type="string">media_gallery</item>
                 <item name="quantity_and_stock_status" xsi:type="string">quantity_and_stock_status</item>
             </argument>
+            <argument name="labelFields" xsi:type="array">
+                <item name="sku" xsi:type="string">sku</item>
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s · %3$s</argument>
+        </arguments>
+    </virtualType>
+    <!-- A product's stock item keeps part of the product's data: its changes are the product's, under the product's id
+         and name. Only the values the admin's stock settings edit are compared; what Magento derives from them (the low
+         stock date, whether the status changed by itself) is left out. The state before is always read from the table:
+         a request keeps stock items and reuses them while their rows can be changed by plain SQL. -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\StockItemStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\CatalogInventory\Model\ResourceModel\Stock\Item\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\StockItemModel" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntity">
+        <arguments>
+            <argument name="storage" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\StockItemStorage</argument>
+            <argument name="scopeResolver" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Scope\StoreScopeResolver</argument>
+            <argument name="code" xsi:type="string">product_stock_item</argument>
+            <argument name="label" xsi:type="string">Stock Item</argument>
+            <argument name="modelClass" xsi:type="string">Magento\CatalogInventory\Model\Stock\Item</argument>
+            <argument name="onlyFields" xsi:type="array">
+                <item name="qty" xsi:type="string">qty</item>
+                <item name="is_in_stock" xsi:type="string">is_in_stock</item>
+                <item name="manage_stock" xsi:type="string">manage_stock</item>
+                <item name="use_config_manage_stock" xsi:type="string">use_config_manage_stock</item>
+                <item name="backorders" xsi:type="string">backorders</item>
+                <item name="use_config_backorders" xsi:type="string">use_config_backorders</item>
+                <item name="min_qty" xsi:type="string">min_qty</item>
+                <item name="use_config_min_qty" xsi:type="string">use_config_min_qty</item>
+                <item name="min_sale_qty" xsi:type="string">min_sale_qty</item>
+                <item name="use_config_min_sale_qty" xsi:type="string">use_config_min_sale_qty</item>
+                <item name="max_sale_qty" xsi:type="string">max_sale_qty</item>
+                <item name="use_config_max_sale_qty" xsi:type="string">use_config_max_sale_qty</item>
+                <item name="notify_stock_qty" xsi:type="string">notify_stock_qty</item>
+                <item name="use_config_notify_stock_qty" xsi:type="string">use_config_notify_stock_qty</item>
+                <item name="enable_qty_increments" xsi:type="string">enable_qty_increments</item>
+                <item name="use_config_enable_qty_inc" xsi:type="string">use_config_enable_qty_inc</item>
+                <item name="qty_increments" xsi:type="string">qty_increments</item>
+                <item name="use_config_qty_increments" xsi:type="string">use_config_qty_increments</item>
+                <item name="is_qty_decimal" xsi:type="string">is_qty_decimal</item>
+                <item name="is_decimal_divided" xsi:type="string">is_decimal_divided</item>
+            </argument>
+            <argument name="readsStoredState" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <!-- Products and categories as their changes name them, read many at a time: only the naming fields -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductNamingRecords" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\NamingRecords">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Product\Proxy</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Product</argument>
+            <argument name="fields" xsi:type="array">
+                <item name="sku" xsi:type="string">sku</item>
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryNamingRecords" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\NamingRecords">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Category\Proxy</argument>
+            <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Category</argument>
+            <argument name="fields" xsi:type="array">
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\ProductStockItemPart" type="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedPart">
+        <arguments>
+            <argument name="entity" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\ProductEntity</argument>
+            <argument name="storedAs" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\StockItemModel</argument>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductNamingRecords</argument>
+            <argument name="entityIdField" xsi:type="string">product_id</argument>
         </arguments>
     </virtualType>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
@@ -102,7 +178,12 @@
             <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Category</argument>
             <argument name="ignoredFields" xsi:type="array">
                 <item name="children_count" xsi:type="string">children_count</item>
+                <item name="entity_id" xsi:type="string">entity_id</item>
             </argument>
+            <argument name="labelFields" xsi:type="array">
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+            <argument name="labelPattern" xsi:type="string">%1$s %2$s (#%3$s)</argument>
         </arguments>
     </virtualType>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
@@ -126,6 +207,112 @@
             </argument>
         </arguments>
     </virtualType>
+    <!-- Values that mean the same: rules for every field (texts differing only in line endings), where each kind of
+         record reads its fields' input types, and the rule of each input type (a Yes/No field holding no value reads
+         as No). -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\Comparison\FieldEquivalences">
+        <arguments>
+            <argument name="inputTypes" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductStorage</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryStorage</item>
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage</item>
+            </argument>
+            <argument name="equivalences" xsi:type="array">
+                <item name="boolean" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Comparison\NoValueMeansNo</item>
+            </argument>
+            <argument name="everyField" xsi:type="array">
+                <item name="lineEndings" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Comparison\LineEndingsAreNotChanges</item>
+            </argument>
+            <!-- A product's stock settings with "Use Config Settings" ticked before and after a save did not change,
+                 although the save writes the configuration's values into the stock item's own columns -->
+            <argument name="followedSettings" xsi:type="array">
+                <item name="product" xsi:type="array">
+                    <item name="manage_stock" xsi:type="string">use_config_manage_stock</item>
+                    <item name="backorders" xsi:type="string">use_config_backorders</item>
+                    <item name="min_qty" xsi:type="string">use_config_min_qty</item>
+                    <item name="min_sale_qty" xsi:type="string">use_config_min_sale_qty</item>
+                    <item name="max_sale_qty" xsi:type="string">use_config_max_sale_qty</item>
+                    <item name="notify_stock_qty" xsi:type="string">use_config_notify_stock_qty</item>
+                    <item name="enable_qty_increments" xsi:type="string">use_config_enable_qty_inc</item>
+                    <item name="qty_increments" xsi:type="string">use_config_qty_increments</item>
+                </item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- Where each kind of record's admin form puts what it submits, to tell the changes a save asked for from those
+         set automatically. "{field}" stands for a field's code. A kind of record without a form here is never
+         changed automatically. "recordFields" names where the fields a kind of record keeps itself are read: only
+         such a field missing from the form counts as not asked for. Another module describes its own form, or adds
+         where an existing form puts the fields it records, with an item here. -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\Automatic\AutomaticFields">
+        <arguments>
+            <argument name="forms" xsi:type="array">
+                <item name="product" xsi:type="array">
+                    <item name="id" xsi:type="array">
+                        <item name="record" xsi:type="string">id</item>
+                    </item>
+                    <!-- The first name the form submits decides. The form sends the quantity and the stock status
+                         it edits under quantity_and_stock_status and the values it loaded under stock_data, so the
+                         edited ones come first. -->
+                    <item name="values" xsi:type="array">
+                        <item name="quantityAndStockStatus" xsi:type="string">product[quantity_and_stock_status][{field}]</item>
+                        <item name="record" xsi:type="string">product[{field}]</item>
+                        <item name="stock" xsi:type="string">product[stock_data][{field}]</item>
+                    </item>
+                    <item name="useConfig" xsi:type="array">
+                        <item name="record" xsi:type="string">product[use_config_{field}]</item>
+                        <item name="stock" xsi:type="string">product[stock_data][use_config_{field}]</item>
+                    </item>
+                    <item name="useDefault" xsi:type="array">
+                        <item name="storeView" xsi:type="string">use_default[{field}]</item>
+                    </item>
+                </item>
+                <item name="category" xsi:type="array">
+                    <item name="id" xsi:type="array">
+                        <item name="record" xsi:type="string">entity_id</item>
+                    </item>
+                    <item name="values" xsi:type="array">
+                        <item name="record" xsi:type="string">{field}</item>
+                    </item>
+                    <item name="useConfig" xsi:type="array">
+                        <item name="record" xsi:type="string">use_config[{field}]</item>
+                    </item>
+                    <item name="useDefault" xsi:type="array">
+                        <item name="storeView" xsi:type="string">use_default[{field}]</item>
+                    </item>
+                </item>
+                <item name="customer" xsi:type="array">
+                    <item name="id" xsi:type="array">
+                        <item name="record" xsi:type="string">customer[entity_id]</item>
+                    </item>
+                    <item name="values" xsi:type="array">
+                        <item name="record" xsi:type="string">customer[{field}]</item>
+                    </item>
+                </item>
+                <item name="cms_page" xsi:type="array">
+                    <item name="id" xsi:type="array">
+                        <item name="record" xsi:type="string">page_id</item>
+                    </item>
+                    <item name="values" xsi:type="array">
+                        <item name="record" xsi:type="string">{field}</item>
+                    </item>
+                </item>
+                <item name="cms_block" xsi:type="array">
+                    <item name="id" xsi:type="array">
+                        <item name="record" xsi:type="string">block_id</item>
+                    </item>
+                    <item name="values" xsi:type="array">
+                        <item name="record" xsi:type="string">{field}</item>
+                    </item>
+                </item>
+            </argument>
+            <argument name="recordFields" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductStorage</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryStorage</item>
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage</item>
+            </argument>
+        </arguments>
+    </type>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\OrderStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\TableStorage">
         <arguments>
             <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Proxy</argument>
@@ -345,6 +532,28 @@
             <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
         </arguments>
     </virtualType>
+    <!-- Changes made without a model are named from the naming fields of the records below, read together for the
+         changes of one call; another entity is named by its label and id -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeRecorder">
+        <arguments>
+            <argument name="records" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\ProductNamingRecords</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CategoryNamingRecords</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- A setting is secret when the configuration keeps it encrypted, whatever its path is called. The admin's
+         configuration structure tells it in every area; it is read only when a setting's change is recorded. -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\EncryptedConfigPaths">
+        <arguments>
+            <argument name="structure" xsi:type="object">adminhtmlConfigStructure</argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\ConfigValueFieldSource">
+        <arguments>
+            <argument name="encryptedPaths" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\EncryptedConfigPaths\Proxy</argument>
+        </arguments>
+    </type>
     <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntityPool">
         <arguments>
             <argument name="entities" xsi:type="array">
@@ -365,8 +574,992 @@
                 <item name="store" xsi:type="object" sortOrder="150">Hryvinskyi\AdminActionLog\Model\EntityChange\StoreEntity</item>
                 <item name="website" xsi:type="object" sortOrder="160">Hryvinskyi\AdminActionLog\Model\EntityChange\WebsiteEntity</item>
             </argument>
+            <!-- Models keeping part of an entity's data, at most one per entity and model class. A module that
+                 records the same values from another source replaces an item here (same item name) with a part that
+                 leaves those values out, so nothing is recorded twice; a part added beside it fails the pool. -->
+            <argument name="parts" xsi:type="array">
+                <item name="product_stock_item" xsi:type="object" sortOrder="10">Hryvinskyi\AdminActionLog\Model\EntityChange\ProductStockItemPart</item>
+            </argument>
+            <!-- Fields secret by the entity's nature, told from the field alone, for saved models and recorded
+                 changes alike -->
+            <argument name="secretFields" xsi:type="array">
+                <item name="config_value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\FieldSource\EncryptedConfigPaths\Proxy</item>
+            </argument>
         </arguments>
     </type>
+
+    <!-- Search: entity changes answer the record keys, "field", "value", the scope half of "store" and plain words -->
+    <type name="Hryvinskyi\ActivityLog\Model\Search\ChangeChannels">
+        <arguments>
+            <argument name="changeChannels" xsi:type="array">
+                <item name="entity" xsi:type="const">Hryvinskyi\AdminActionLog\Model\ChannelCode::ENTITY</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Hryvinskyi\ActivityLog\Model\Search\ConditionPool">
+        <arguments>
+            <argument name="conditions" xsi:type="array">
+                <item name="entity_product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\ProductCondition</item>
+                <item name="entity_category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\CategoryCondition</item>
+                <item name="entity_config" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\ConfigPathCondition</item>
+                <item name="entity_page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\CmsPageCondition</item>
+                <item name="entity_block" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\CmsBlockCondition</item>
+                <item name="entity_customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\CustomerCondition</item>
+                <item name="entity_order" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\OrderCondition</item>
+                <item name="entity_rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\RuleCondition</item>
+                <item name="entity_entity" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\EntityTypeCondition</item>
+                <item name="entity_field" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\FieldCondition</item>
+                <item name="entity_value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\ValueCondition</item>
+                <item name="entity_store" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\ScopeCondition</item>
+                <item name="entity_text" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Condition\TextCondition</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- How the records a person names are found, kind by kind -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\ProductRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\ProductLookup</argument>
+            <argument name="searchableById" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CategoryRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CategoryLookup</argument>
+            <argument name="searchableById" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Customer\Model\ResourceModel\Customer\Proxy</argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerLookup</argument>
+            <argument name="searchableById" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPageLookup" type="Hryvinskyi\AdminActionLog\Model\Search\Record\TableLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Page\Proxy</argument>
+            <argument name="exactColumns" xsi:type="array">
+                <item name="identifier" xsi:type="string">identifier</item>
+            </argument>
+            <argument name="nameColumns" xsi:type="array">
+                <item name="title" xsi:type="string">title</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPageRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPageLookup</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockLookup" type="Hryvinskyi\AdminActionLog\Model\Search\Record\TableLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Block\Proxy</argument>
+            <argument name="exactColumns" xsi:type="array">
+                <item name="identifier" xsi:type="string">identifier</item>
+            </argument>
+            <argument name="nameColumns" xsi:type="array">
+                <item name="title" xsi:type="string">title</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockLookup</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\OrderLookup" type="Hryvinskyi\AdminActionLog\Model\Search\Record\TableLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Proxy</argument>
+            <argument name="exactColumns" xsi:type="array">
+                <item name="increment_id" xsi:type="string">increment_id</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\OrderRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\OrderLookup</argument>
+            <argument name="exactKeyIsAnId" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\OrderCommentRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\ChildRecords">
+        <arguments>
+            <argument name="parents" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\OrderRecords</argument>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Status\History\Proxy</argument>
+            <argument name="parentColumn" xsi:type="string">parent_id</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRuleLookup" type="Hryvinskyi\AdminActionLog\Model\Search\Record\TableLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\SalesRule\Model\ResourceModel\Rule\Proxy</argument>
+            <argument name="nameColumns" xsi:type="array">
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRuleRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRuleLookup</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRuleLookup" type="Hryvinskyi\AdminActionLog\Model\Search\Record\TableLookup">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\CatalogRule\Model\ResourceModel\Rule\Proxy</argument>
+            <argument name="nameColumns" xsi:type="array">
+                <item name="name" xsi:type="string">name</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRuleRecords" type="Hryvinskyi\AdminActionLog\Model\Search\Record\RecordResolver">
+        <arguments>
+            <argument name="lookup" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRuleLookup</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Record keys: each names the tracked entity codes it covers, with how their records are found -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\ProductCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">product</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\ProductRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\CategoryCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">category</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CategoryRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\CmsPageCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">page</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="cms_page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPageRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\CmsBlockCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">block</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="cms_block" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\CustomerCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">customer</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\OrderCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">order</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="order" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\OrderRecords</item>
+                <item name="order_comment" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\OrderCommentRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Condition\RuleCondition" type="Hryvinskyi\AdminActionLog\Model\Search\Condition\RecordCondition">
+        <arguments>
+            <argument name="key" xsi:type="string">rule</argument>
+            <argument name="entities" xsi:type="array">
+                <item name="cart_price_rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRuleRecords</item>
+                <item name="catalog_price_rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRuleRecords</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Condition\ScopeCondition">
+        <arguments>
+            <!-- The names the scope resolvers record for scopes without an id -->
+            <argument name="fixedScopes" xsi:type="array">
+                <item name="default_config" xsi:type="array">
+                    <item name="type" xsi:type="const">Hryvinskyi\AdminActionLog\Api\Data\EntityScopeInterface::TYPE_DEFAULT</item>
+                    <item name="label" xsi:type="string">Default Config</item>
+                </item>
+                <item name="all_store_views" xsi:type="array">
+                    <item name="type" xsi:type="const">Hryvinskyi\AdminActionLog\Api\Data\EntityScopeInterface::TYPE_DEFAULT</item>
+                    <item name="label" xsi:type="string">All Store Views</item>
+                </item>
+                <item name="global" xsi:type="array">
+                    <item name="type" xsi:type="const">Hryvinskyi\AdminActionLog\Api\Data\EntityScopeInterface::TYPE_GLOBAL</item>
+                    <item name="label" xsi:type="string">Global</item>
+                </item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Field codes by the label an admin sees: product, category and customer attributes, the product fields kept
+         by id ("Attribute Set"), and settings -->
+    <preference for="Hryvinskyi\AdminActionLog\Model\Search\Field\FieldLabelSourceInterface" type="Hryvinskyi\AdminActionLog\Model\Search\Field\FieldLabels"/>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Field\FieldLabels">
+        <arguments>
+            <argument name="sources" xsi:type="array">
+                <item name="attribute" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\TrackedAttributeLabels</item>
+                <item name="config" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\ConfigFieldLabels</item>
+                <item name="productStatic" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\ProductStaticFields</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- Virtual types each list their own entity types: arguments of a virtual type merge into its type's arrays -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\TrackedAttributeLabels" type="Hryvinskyi\AdminActionLog\Model\Search\Field\AttributeLabels">
+        <arguments>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="product" xsi:type="const">Magento\Catalog\Model\Product::ENTITY</item>
+                <item name="category" xsi:type="const">Magento\Catalog\Model\Category::ENTITY</item>
+                <item name="customer" xsi:type="const">Magento\Customer\Model\Customer::ENTITY</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Field\ConfigFieldLabels">
+        <arguments>
+            <argument name="structure" xsi:type="object">Magento\Config\Model\Config\Structure\Proxy</argument>
+        </arguments>
+    </type>
+
+    <!-- Search results describe entity changes: verb, fields as the admin sees them, a link to the record -->
+    <type name="Hryvinskyi\ActivityLog\Model\Search\Detail\DetailProviderPool">
+        <arguments>
+            <argument name="detailProviders" xsi:type="array">
+                <item name="entity" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\EntityChangeDetails</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Fields and values as the admin sees them, by kind of record; a kind without one is shown as stored -->
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Field\FieldDisplays">
+        <arguments>
+            <argument name="displays" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\ProductFieldDisplay</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\CategoryAttributeLabels</item>
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\CustomerAttributeLabels</item>
+                <item name="config_value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\ConfigFieldLabels</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- A value is written by the first format that supports its attribute: dates in the admin's locale, decimals as
+         the forms write them, options by their labels -->
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Field\AttributeLabels">
+        <arguments>
+            <argument name="formats" xsi:type="array">
+                <item name="date" xsi:type="object" sortOrder="10">Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateOnly</item>
+                <item name="datetime" xsi:type="object" sortOrder="20">Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateAndTime</item>
+                <item name="decimal" xsi:type="object" sortOrder="30">Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DecimalFormat</item>
+                <item name="option" xsi:type="object" sortOrder="40">Hryvinskyi\AdminActionLog\Model\Search\Field\Format\OptionFormat</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateOnly" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateFormat">
+        <arguments>
+            <argument name="inputType" xsi:type="string">date</argument>
+            <argument name="withTime" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateAndTime" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Format\DateFormat">
+        <arguments>
+            <argument name="inputType" xsi:type="string">datetime</argument>
+            <argument name="withTime" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <!-- Products: the fields kept by id outside the attributes' options first, then the attributes -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\ProductFieldDisplay" type="Hryvinskyi\AdminActionLog\Model\Search\Field\FieldDisplayChain">
+        <arguments>
+            <argument name="displays" xsi:type="array">
+                <item name="static" xsi:type="object" sortOrder="10">Hryvinskyi\AdminActionLog\Model\Search\Field\ProductStaticFields</item>
+                <item name="attributes" xsi:type="object" sortOrder="20">Hryvinskyi\AdminActionLog\Model\Search\Field\ProductAttributeLabels</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <!-- Product fields kept outside the attributes, with their labels and how their values are shown. A module that
+         records other product fields (through the entity change recorder) adds them here with an item of its own;
+         they are then also found by their labels. -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\ProductStaticFields" type="Hryvinskyi\AdminActionLog\Model\Search\Field\StaticFields">
+        <arguments>
+            <argument name="fields" xsi:type="array">
+                <item name="attribute_set_id" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Attribute Set</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\ProductAttributeSetNames</item>
+                </item>
+                <item name="type_id" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Product Type</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\ProductTypeNames</item>
+                </item>
+                <item name="website_ids" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Websites</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\WebsiteNames</item>
+                    <item name="list" xsi:type="boolean">true</item>
+                </item>
+                <item name="category_ids" xsi:type="array">
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\CategoryPaths</item>
+                    <item name="list" xsi:type="boolean">true</item>
+                </item>
+                <!-- The stock item's values, recorded as the product's -->
+                <item name="qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Quantity</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="is_in_stock" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Stock Status</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\StockStatusNames</item>
+                </item>
+                <item name="manage_stock" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Manage Stock</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="use_config_manage_stock" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Manage Stock: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="backorders" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Backorders</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\BackorderNames</item>
+                </item>
+                <item name="use_config_backorders" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Backorders: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="min_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Out-of-Stock Threshold</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="use_config_min_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Out-of-Stock Threshold: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="min_sale_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Minimum Qty Allowed in Shopping Cart</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="use_config_min_sale_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Minimum Qty Allowed in Shopping Cart: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="max_sale_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Maximum Qty Allowed in Shopping Cart</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="use_config_max_sale_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Maximum Qty Allowed in Shopping Cart: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="notify_stock_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Notify for Quantity Below</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="use_config_notify_stock_qty" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Notify for Quantity Below: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="enable_qty_increments" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Enable Qty Increments</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="use_config_enable_qty_inc" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Enable Qty Increments: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="qty_increments" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Qty Increments</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\Quantities</item>
+                </item>
+                <item name="use_config_qty_increments" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Qty Increments: Use Config Settings</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="is_qty_decimal" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Qty Uses Decimals</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+                <item name="is_decimal_divided" xsi:type="array">
+                    <item name="label" xsi:type="string" translate="true">Allow Multiple Boxes for Shipping</item>
+                    <item name="names" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames</item>
+                </item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\ProductAttributeSetNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\Catalog\Model\Product\AttributeSet\Options\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\ProductTypeNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\Catalog\Model\Product\Type\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\StockStatusNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\CatalogInventory\Model\Source\Stock\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\BackorderNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\CatalogInventory\Model\Source\Backorders</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\YesNoNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\Config\Model\Config\Source\Yesno</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\WebsiteNames" type="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\OptionSourceNames">
+        <arguments>
+            <argument name="source" xsi:type="object">Magento\Config\Model\Config\Source\Website\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Field\Value\CategoryPaths">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Category\Proxy</argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\ProductAttributeLabels" type="Hryvinskyi\AdminActionLog\Model\Search\Field\AttributeLabels">
+        <arguments>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="entity" xsi:type="const">Magento\Catalog\Model\Product::ENTITY</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\CategoryAttributeLabels" type="Hryvinskyi\AdminActionLog\Model\Search\Field\AttributeLabels">
+        <arguments>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="entity" xsi:type="const">Magento\Catalog\Model\Category::ENTITY</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Field\CustomerAttributeLabels" type="Hryvinskyi\AdminActionLog\Model\Search\Field\AttributeLabels">
+        <arguments>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="entity" xsi:type="const">Magento\Customer\Model\Customer::ENTITY</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <!-- The edit page of each kind of record: route, id parameter, ACL resource, and where its records are -->
+    <type name="Hryvinskyi\AdminActionLog\Model\Search\Detail\SubjectLinks">
+        <arguments>
+            <argument name="editPages" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\ProductEditPage</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CategoryEditPage</item>
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CustomerEditPage</item>
+                <item name="order" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderEditPage</item>
+                <item name="cms_page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsPageEditPage</item>
+                <item name="cms_block" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsBlockEditPage</item>
+                <item name="admin_user" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\AdminUserEditPage</item>
+                <item name="admin_role" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\AdminRoleEditPage</item>
+                <item name="integration" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\IntegrationEditPage</item>
+                <item name="url_rewrite" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\UrlRewriteEditPage</item>
+                <item name="cart_price_rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CartPriceRuleEditPage</item>
+                <item name="catalog_price_rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\CatalogPriceRuleEditPage</item>
+                <item name="store" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\StoreEditPage</item>
+                <item name="website" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Detail\WebsiteEditPage</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\ProductPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\EavRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Product\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\ProductEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\ProductPresence</argument>
+            <argument name="route" xsi:type="string">catalog/product/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Catalog::products</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CategoryPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\EavRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Category\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CategoryEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CategoryPresence</argument>
+            <argument name="route" xsi:type="string">catalog/category/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Catalog::categories</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\EavRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Customer\Model\ResourceModel\Customer\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CustomerEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CustomerPresence</argument>
+            <argument name="route" xsi:type="string">customer/index/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Customer::manage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\OrderPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Sales\Model\ResourceModel\Order\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\OrderEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\OrderPresence</argument>
+            <argument name="route" xsi:type="string">sales/order/view</argument>
+            <argument name="idParam" xsi:type="string">order_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Sales::actions_view</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPagePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Page\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsPageEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsPagePresence</argument>
+            <argument name="route" xsi:type="string">cms/page/edit</argument>
+            <argument name="idParam" xsi:type="string">page_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Cms::save</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Cms\Model\ResourceModel\Block\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CmsBlockEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CmsBlockPresence</argument>
+            <argument name="route" xsi:type="string">cms/block/edit</argument>
+            <argument name="idParam" xsi:type="string">block_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Cms::block</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\AdminUserPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\User\Model\ResourceModel\User\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\AdminUserEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\AdminUserPresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/user/edit</argument>
+            <argument name="idParam" xsi:type="string">user_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_User::acl_users</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\AdminRolePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Authorization\Model\ResourceModel\Role\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\AdminRoleEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\AdminRolePresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/user_role/editrole</argument>
+            <argument name="idParam" xsi:type="string">rid</argument>
+            <argument name="aclResource" xsi:type="string">Magento_User::acl_roles</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\IntegrationPresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Integration\Model\ResourceModel\Integration\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\IntegrationEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\IntegrationPresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/integration/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Integration::integrations</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\UrlRewritePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\UrlRewrite\Model\ResourceModel\UrlRewrite\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\UrlRewriteEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\UrlRewritePresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/url_rewrite/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_UrlRewrite::urlrewrite</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRulePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\SalesRule\Model\ResourceModel\Rule\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CartPriceRuleEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CartPriceRulePresence</argument>
+            <argument name="route" xsi:type="string">sales_rule/promo_quote/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_SalesRule::quote</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRulePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\CatalogRule\Model\ResourceModel\Rule\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\CatalogPriceRuleEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\CatalogPriceRulePresence</argument>
+            <argument name="route" xsi:type="string">catalog_rule/promo_catalog/edit</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_CatalogRule::promo_catalog</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\StorePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Store\Model\ResourceModel\Store\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\StoreEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\StorePresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/system_store/editStore</argument>
+            <argument name="idParam" xsi:type="string">store_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Backend::store</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Record\WebsitePresence" type="Hryvinskyi\AdminActionLog\Model\Search\Record\FlatRecordPresence">
+        <arguments>
+            <argument name="resource" xsi:type="object">Magento\Store\Model\ResourceModel\Website\Proxy</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Detail\WebsiteEditPage" type="Hryvinskyi\AdminActionLog\Model\Search\Detail\EditPage">
+        <arguments>
+            <argument name="records" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\WebsitePresence</argument>
+            <argument name="route" xsi:type="string">adminhtml/system_store/editWebsite</argument>
+            <argument name="idParam" xsi:type="string">website_id</argument>
+            <argument name="aclResource" xsi:type="string">Magento_Backend::store</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- How the keys of entity changes are presented in the filters panel -->
+    <type name="Hryvinskyi\ActivityLog\Model\Search\KeyDescriptionPool">
+        <arguments>
+            <argument name="keyDescriptions" xsi:type="array">
+                <item name="entity" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\EntityType</item>
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Product</item>
+                <item name="category" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Category</item>
+                <item name="config" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Config</item>
+                <item name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\CmsPage</item>
+                <item name="block" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\CmsBlock</item>
+                <item name="customer" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Customer</item>
+                <item name="order" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Order</item>
+                <item name="rule" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Rule</item>
+                <item name="field" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Field</item>
+                <item name="value" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Value</item>
+                <!-- Scopes of settings join store views: the scope filter offers both -->
+                <item name="store" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Scope</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\EntityType" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">entity</argument>
+            <argument name="label" xsi:type="string" translate="true">Entity type</argument>
+            <argument name="hint" xsi:type="string" translate="true">The kind of record that changed</argument>
+            <argument name="control" xsi:type="string">select</argument>
+            <argument name="sortOrder" xsi:type="number">10</argument>
+            <argument name="options" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Source\TrackedEntityOptions</argument>
+            <argument name="group" xsi:type="string">types</argument>
+            <argument name="companionLabel" xsi:type="string" translate="true">Entity ID / SKU / config path</argument>
+            <argument name="companionHint" xsi:type="string" translate="true">SKU, ID or config path</argument>
+            <!-- A value typed beside the chosen kind of record is searched under that kind's key -->
+            <argument name="optionTargets" xsi:type="array">
+                <item name="product" xsi:type="string">product</item>
+                <item name="category" xsi:type="string">category</item>
+                <item name="customer" xsi:type="string">customer</item>
+                <item name="order" xsi:type="string">order</item>
+                <item name="order_comment" xsi:type="string">order</item>
+                <item name="cms_page" xsi:type="string">page</item>
+                <item name="cms_block" xsi:type="string">block</item>
+                <item name="config_value" xsi:type="string">config</item>
+                <item name="cart_price_rule" xsi:type="string">rule</item>
+                <item name="catalog_price_rule" xsi:type="string">rule</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Product" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">product</argument>
+            <argument name="label" xsi:type="string" translate="true">Product</argument>
+            <argument name="hint" xsi:type="string" translate="true">SKU, ID or name; #ID for exactly one product</argument>
+            <argument name="sortOrder" xsi:type="number">20</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Category" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">category</argument>
+            <argument name="label" xsi:type="string" translate="true">Category</argument>
+            <argument name="hint" xsi:type="string" translate="true">ID or name; #ID for exactly one category</argument>
+            <argument name="sortOrder" xsi:type="number">21</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Config" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">config</argument>
+            <argument name="label" xsi:type="string" translate="true">Setting</argument>
+            <argument name="hint" xsi:type="string" translate="true">Config path of a setting, or of a group of settings</argument>
+            <argument name="sortOrder" xsi:type="number">22</argument>
+            <argument name="group" xsi:type="string">fields</argument>
+            <argument name="matchesFieldNames" xsi:type="boolean">true</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\CmsPage" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">page</argument>
+            <argument name="label" xsi:type="string" translate="true">CMS page</argument>
+            <argument name="hint" xsi:type="string" translate="true">Identifier or title; #ID for exactly one page</argument>
+            <argument name="sortOrder" xsi:type="number">23</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\CmsBlock" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">block</argument>
+            <argument name="label" xsi:type="string" translate="true">CMS block</argument>
+            <argument name="hint" xsi:type="string" translate="true">Identifier or title; #ID for exactly one block</argument>
+            <argument name="sortOrder" xsi:type="number">24</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Customer" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">customer</argument>
+            <argument name="label" xsi:type="string" translate="true">Customer</argument>
+            <argument name="hint" xsi:type="string" translate="true">Email, ID or name; #ID for exactly one customer</argument>
+            <argument name="sortOrder" xsi:type="number">25</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Order" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">order</argument>
+            <argument name="label" xsi:type="string" translate="true">Order</argument>
+            <argument name="hint" xsi:type="string" translate="true">Order number, with its comments; #ID or #number for exactly one order</argument>
+            <argument name="sortOrder" xsi:type="number">26</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Rule" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">rule</argument>
+            <argument name="label" xsi:type="string" translate="true">Price rule</argument>
+            <argument name="hint" xsi:type="string" translate="true">Cart or catalog price rule name; #ID for exactly one rule</argument>
+            <argument name="sortOrder" xsi:type="number">27</argument>
+            <argument name="group" xsi:type="string">records</argument>
+            <argument name="inPanel" xsi:type="boolean">false</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Field" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">field</argument>
+            <argument name="label" xsi:type="string" translate="true">Field name</argument>
+            <argument name="hint" xsi:type="string" translate="true">Field name, its label, or a config path</argument>
+            <argument name="sortOrder" xsi:type="number">40</argument>
+            <argument name="group" xsi:type="string">fields</argument>
+            <argument name="matchesFieldNames" xsi:type="boolean">true</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Value" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">value</argument>
+            <argument name="label" xsi:type="string" translate="true">Before or after value contains</argument>
+            <argument name="hint" xsi:type="string" translate="true">Text in the value before or after the change; masked values are skipped</argument>
+            <argument name="sortOrder" xsi:type="number">50</argument>
+            <argument name="group" xsi:type="string">other</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\KeyDescription\Scope" type="Hryvinskyi\ActivityLog\Model\Search\KeyDescription\KeyDescription">
+        <arguments>
+            <argument name="key" xsi:type="string">store</argument>
+            <argument name="label" xsi:type="string" translate="true">Scope / store view</argument>
+            <argument name="hint" xsi:type="string" translate="true">Store view, website or Default Config; a | b for any of them</argument>
+            <argument name="control" xsi:type="string">select</argument>
+            <argument name="sortOrder" xsi:type="number">140</argument>
+            <argument name="options" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Source\ScopeOptions</argument>
+            <argument name="group" xsi:type="string">other</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Values the search bar suggests for the keys of entity changes, after the journal's own -->
+    <type name="Hryvinskyi\ActivityLog\Model\Search\SuggestionPool">
+        <arguments>
+            <argument name="suggestionProviders" xsi:type="array">
+                <item name="entity_types" xsi:type="object" sortOrder="200">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\EntityTypeSuggestions</item>
+                <item name="entity_fields" xsi:type="object" sortOrder="210">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\FieldSuggestions</item>
+                <item name="entity_settings" xsi:type="object" sortOrder="220">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\SettingSuggestions</item>
+                <item name="entity_products" xsi:type="object" sortOrder="230">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\ProductSuggestions</item>
+                <item name="entity_categories" xsi:type="object" sortOrder="231">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CategorySuggestions</item>
+                <item name="entity_cms_pages" xsi:type="object" sortOrder="232">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CmsPageSuggestions</item>
+                <item name="entity_cms_blocks" xsi:type="object" sortOrder="233">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CmsBlockSuggestions</item>
+                <item name="entity_customers" xsi:type="object" sortOrder="234">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CustomerSuggestions</item>
+                <item name="entity_orders" xsi:type="object" sortOrder="235">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\OrderSuggestions</item>
+                <item name="entity_rules" xsi:type="object" sortOrder="236">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RuleSuggestions</item>
+                <item name="entity_scopes" xsi:type="object" sortOrder="300">Hryvinskyi\AdminActionLog\Model\Search\Suggestion\ScopeSuggestions</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\SettingSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\FieldSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">config</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="config_value" xsi:type="string">config_value</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\ProductSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">product</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="product" xsi:type="string">product</item>
+            </argument>
+            <argument name="naturalKeys" xsi:type="array">
+                <item name="product" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\ProductSkus</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CategorySuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">category</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="category" xsi:type="string">category</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CmsPageSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">page</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="cms_page" xsi:type="string">cms_page</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CmsBlockSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">block</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="cms_block" xsi:type="string">cms_block</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\CustomerSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">customer</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="customer" xsi:type="string">customer</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\OrderSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">order</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="order" xsi:type="string">order</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RuleSuggestions" type="Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions">
+        <arguments>
+            <argument name="key" xsi:type="string">rule</argument>
+            <argument name="entityTypes" xsi:type="array">
+                <item name="cart_price_rule" xsi:type="string">cart_price_rule</item>
+                <item name="catalog_price_rule" xsi:type="string">catalog_price_rule</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Example searches for an empty log page -->
+    <type name="Hryvinskyi\ActivityLog\Model\Search\ExamplePool">
+        <arguments>
+            <argument name="examples" xsi:type="array">
+                <item name="entity_price_changes" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Example\PriceChanges</item>
+                <item name="entity_settings_changed" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Example\SettingsChanged</item>
+                <item name="entity_blocks_with_links" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Example\BlocksWithLinks</item>
+                <item name="entity_customers_today" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Example\CustomersToday</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Example\PriceChanges" type="Hryvinskyi\AdminActionLog\Model\Search\Example\ConfiguredExample">
+        <arguments>
+            <argument name="title" xsi:type="string" translate="true">Who changed product prices</argument>
+            <argument name="chips" xsi:type="array">
+                <item name="field" xsi:type="array">
+                    <item name="key" xsi:type="string">field</item>
+                    <item name="value" xsi:type="string">price</item>
+                </item>
+                <item name="entity" xsi:type="array">
+                    <item name="key" xsi:type="string">entity</item>
+                    <item name="value" xsi:type="string">product</item>
+                </item>
+            </argument>
+            <argument name="preset" xsi:type="string">30d</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Example\SettingsChanged" type="Hryvinskyi\AdminActionLog\Model\Search\Example\ConfiguredExample">
+        <arguments>
+            <argument name="title" xsi:type="string" translate="true">Settings changed this week</argument>
+            <argument name="chips" xsi:type="array">
+                <item name="entity" xsi:type="array">
+                    <item name="key" xsi:type="string">entity</item>
+                    <item name="value" xsi:type="string">config_value</item>
+                </item>
+            </argument>
+            <argument name="preset" xsi:type="string">7d</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Example\BlocksWithLinks" type="Hryvinskyi\AdminActionLog\Model\Search\Example\ConfiguredExample">
+        <arguments>
+            <argument name="title" xsi:type="string" translate="true">CMS blocks whose content holds a link</argument>
+            <argument name="chips" xsi:type="array">
+                <item name="entity" xsi:type="array">
+                    <item name="key" xsi:type="string">entity</item>
+                    <item name="value" xsi:type="string">cms_block</item>
+                </item>
+                <item name="value" xsi:type="array">
+                    <item name="key" xsi:type="string">value</item>
+                    <item name="value" xsi:type="string">href</item>
+                </item>
+            </argument>
+            <argument name="preset" xsi:type="string">30d</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\Search\Example\CustomersToday" type="Hryvinskyi\AdminActionLog\Model\Search\Example\ConfiguredExample">
+        <arguments>
+            <argument name="title" xsi:type="string" translate="true">Customer accounts changed today</argument>
+            <argument name="chips" xsi:type="array">
+                <item name="entity" xsi:type="array">
+                    <item name="key" xsi:type="string">entity</item>
+                    <item name="value" xsi:type="string">customer</item>
+                </item>
+            </argument>
+            <argument name="preset" xsi:type="string">today</argument>
+        </arguments>
+    </virtualType>
 
     <!-- Settings are saved from the command line too, where only global wiring exists -->
     <virtualType name="Hryvinskyi\AdminActionLog\Model\Config\Backend\IgnoredRouteList"

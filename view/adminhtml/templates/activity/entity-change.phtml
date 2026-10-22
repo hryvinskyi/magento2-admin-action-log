@@ -91,6 +91,13 @@ $change = $panel->change();
                             <?php if ($field['masked']): ?>
                                 <span class="admin-action-tag"><?= $escaper->escapeHtml(__('masked')) ?></span>
                             <?php endif; ?>
+                            <?php if ($field['automatic']): ?>
+                                <?php $automaticNote = __('Magento set it on save; the form did not ask for it.') ?>
+                                <span class="admin-action-tag admin-action-tag--automatic"
+                                      title="<?= $escaper->escapeHtmlAttr($automaticNote) ?>">
+                                    <?= $escaper->escapeHtml(__('set automatically')) ?>
+                                </span>
+                            <?php endif; ?>
                         </th>
                         <?php foreach (['before', 'after'] as $side): ?>
                             <?php $value = $field[$side]; ?>

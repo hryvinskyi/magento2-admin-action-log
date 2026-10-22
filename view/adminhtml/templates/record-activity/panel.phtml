@@ -1,0 +1,87 @@
+<?php
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+
+declare(strict_types=1);
+
+use Hryvinskyi\ActivityLog\Api\IconsInterface;
+use Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/**
+ * A record's activity panel: a slide-out beside the edit form with the record's changes, filtered by field, actor,
+ * period and store view, as the activity timeline draws them. The script opens it from the page's "Activity" button
+ * or a field's "History", fills the parts carrying data-slot names with textContent, and reads its config from the
+ * JSON beside them; nothing in the markup is data.
+ *
+ * @var Template $block
+ * @var Escaper $escaper
+ */
+
+$panel = $block->getData('panel');
+if (!$panel instanceof RecordActivityPanel) {
+    return;
+}
+$config = $panel->configJson();
+if ($config === null) {
+    return;
+}
+$icons = $block->getData('icons');
+$icon = static fn (string $id, string $class): string => $icons instanceof IconsInterface
+    ? $icons->render($id, $class)
+    : '';
+?>
+<div class="record-activity" data-role="record-activity" hidden
+     data-mage-init='<?= $escaper->escapeHtmlAttr('{"Hryvinskyi_AdminActionLog/js/record-activity/panel": {}}') ?>'>
+    <script type="application/json" data-role="record-activity-config">
+        <?= /* @noEscape */ $config ?>
+    </script>
+    <header class="record-activity__header">
+        <div class="record-activity__heading-block">
+            <h2 class="record-activity__heading" id="record-activity-heading" data-role="record-activity-heading"
+                tabindex="-1">
+                <span class="record-activity__heading-word"><?= $escaper->escapeHtml(__('Activity')) ?></span>
+                <span class="record-activity__title" data-slot="title"></span>
+            </h2>
+            <div class="record-activity__subtitle" data-slot="subtitle"></div>
+        </div>
+        <div class="record-activity__header-actions">
+            <a class="record-activity__open-log" data-slot="log-link" href="#">
+                <?= $escaper->escapeHtml(__('Open in Activity Log')) ?>
+                <?= /* @noEscape */ $icon('Hryvinskyi_AdminActionLog::external-link', 'record-activity__link-icon') ?>
+            </a>
+            <button type="button" class="record-activity__close" data-role="closeBtn"
+                    aria-label="<?= $escaper->escapeHtmlAttr(__('Close')) ?>">
+                <?= /* @noEscape */ $icon('Hryvinskyi_ActivityLog::x', 'record-activity__close-icon') ?>
+            </button>
+        </div>
+    </header>
+    <div class="record-activity__toolbar">
+        <select class="record-activity__select" data-slot="field"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Field')) ?>">
+            <option value=""><?= $escaper->escapeHtml(__('All fields')) ?></option>
+        </select>
+        <select class="record-activity__select" data-slot="actor"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Actor')) ?>">
+            <option value=""><?= $escaper->escapeHtml(__('Anyone')) ?></option>
+        </select>
+        <select class="record-activity__select" data-slot="period"
+                aria-label="<?= $escaper->escapeHtmlAttr(__('Period')) ?>">
+            <option value="7d"><?= $escaper->escapeHtml(__('Last 7 days')) ?></option>
+            <option value="30d" selected><?= $escaper->escapeHtml(__('Last 30 days')) ?></option>
+            <option value="all"><?= $escaper->escapeHtml(__('All time')) ?></option>
+        </select>
+        <?php if ($panel->isScoped()): ?>
+            <label class="record-activity__scopes">
+                <input type="checkbox" data-slot="all-scopes" checked>
+                <?= $escaper->escapeHtml(__('All store views')) ?>
+            </label>
+        <?php endif; ?>
+        <span class="record-activity__count" data-slot="count" aria-live="polite"></span>
+    </div>
+    <div class="record-activity__results" data-slot="results"></div>
+</div>

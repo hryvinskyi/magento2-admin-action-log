@@ -12,13 +12,15 @@ namespace Hryvinskyi\AdminActionLog\ViewModel;
 use Hryvinskyi\ActivityLog\Api\ActivityRepositoryInterface;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\ChangeOperation;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\DiffMode;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\ValueKinds;
 use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
 
 /**
- * The entity change panel of the activity detail page: fields grouped by the scope they were saved in
+ * The entity change panel of the activity detail page: fields grouped by the scope they were saved in, those set
+ * automatically marked and listed after those asked for
  *
  * @phpstan-type FieldView array{
  *     field: string,
@@ -26,6 +28,7 @@ use Magento\Framework\View\Element\Block\ArgumentInterface;
  *     after: string|null,
  *     changed: bool,
  *     masked: bool,
+ *     automatic: bool,
  *     long: bool
  * }
  * @phpstan-type ScopeGroup array{label: string, type: string, id: int, fields: list<FieldView>}
@@ -40,18 +43,17 @@ use Magento\Framework\View\Element\Block\ArgumentInterface;
  */
 class EntityChangePanel implements ArgumentInterface
 {
-    private const LONG_LENGTH = 160;
-    private const LONG_LINES = 3;
-
     /**
      * @param RequestInterface $request
      * @param EntityChangeStore $store
      * @param ActivityRepositoryInterface $activityRepository
+     * @param ValueKinds $valueKinds
      */
     public function __construct(
         private readonly RequestInterface $request,
         private readonly EntityChangeStore $store,
-        private readonly ActivityRepositoryInterface $activityRepository
+        private readonly ActivityRepositoryInterface $activityRepository,
+        private readonly ValueKinds $valueKinds
     ) {
     }
 
@@ -88,7 +90,8 @@ class EntityChangePanel implements ArgumentInterface
                 'after' => $row['after'],
                 'changed' => $row['changed'],
                 'masked' => $row['masked'],
-                'long' => !$row['masked'] && ($this->isLong($row['before']) || $this->isLong($row['after'])),
+                'automatic' => $row['automatic'],
+                'long' => !$row['masked'] && $this->valueKinds->isLong($row['before'], $row['after']),
             ];
             $changedCount += $row['changed'] ? 1 : 0;
         }
@@ -103,18 +106,6 @@ class EntityChangePanel implements ArgumentInterface
             'unchangedCount' => max($change['unchangedCount'], $storedUnchanged),
             'groups' => array_values($groups),
         ];
-    }
-
-    /**
-     * Whether a value is long enough to be clipped until expanded
-     *
-     * @param string|null $value
-     * @return bool
-     */
-    private function isLong(?string $value): bool
-    {
-        return $value !== null
-            && (mb_strlen($value) > self::LONG_LENGTH || substr_count($value, "\n") >= self::LONG_LINES);
     }
 
     /**

@@ -11,6 +11,8 @@
     <!-- Inside the admin authentication plugin (sortOrder 100): only requests of a signed-in admin reach it -->
     <type name="Magento\Backend\App\AbstractAction">
         <plugin name="hryvinskyi_admin_action_log_request" type="Hryvinskyi\AdminActionLog\Plugin\Backend\RecordAdminRequest" sortOrder="200"/>
+        <!-- What a signed-in admin submitted, held while the action runs: changes it did not ask for are marked -->
+        <plugin name="hryvinskyi_admin_action_log_submitted_form" type="Hryvinskyi\AdminActionLog\Plugin\Backend\HoldSubmittedForm" sortOrder="210"/>
     </type>
     <type name="Hryvinskyi\AdminActionLog\Plugin\Backend\RecordAdminRequest">
         <arguments>
@@ -37,6 +39,134 @@
                 <item name="uppercase" xsi:type="boolean">false</item>
                 <item name="separator" xsi:type="string">,</item>
             </argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Record activity on edit pages: the kinds of record, their search key, id parameter and panel layout handle -->
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\RecordActivity\ProductPage" type="Hryvinskyi\AdminActionLog\Model\RecordActivity\RecordPage">
+        <arguments>
+            <argument name="searchKey" xsi:type="string">product</argument>
+            <argument name="entityType" xsi:type="string">product</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="layoutHandle" xsi:type="string">hryvinskyi_adminactionlog_record_activity_product</argument>
+            <argument name="defaultScopeLabel" xsi:type="string">All Store Views</argument>
+            <argument name="keys" xsi:type="object">Hryvinskyi\AdminActionLog\Model\Search\Record\ProductSkus</argument>
+            <argument name="keyLabel" xsi:type="string">SKU</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\RecordActivity\CategoryPage" type="Hryvinskyi\AdminActionLog\Model\RecordActivity\RecordPage">
+        <arguments>
+            <argument name="searchKey" xsi:type="string">category</argument>
+            <argument name="entityType" xsi:type="string">category</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="layoutHandle" xsi:type="string">hryvinskyi_adminactionlog_record_activity_category</argument>
+            <argument name="defaultScopeLabel" xsi:type="string">All Store Views</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsPagePage" type="Hryvinskyi\AdminActionLog\Model\RecordActivity\RecordPage">
+        <arguments>
+            <argument name="searchKey" xsi:type="string">page</argument>
+            <argument name="entityType" xsi:type="string">cms_page</argument>
+            <argument name="idParam" xsi:type="string">page_id</argument>
+            <argument name="layoutHandle" xsi:type="string">hryvinskyi_adminactionlog_record_activity_cms_page</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsBlockPage" type="Hryvinskyi\AdminActionLog\Model\RecordActivity\RecordPage">
+        <arguments>
+            <argument name="searchKey" xsi:type="string">block</argument>
+            <argument name="entityType" xsi:type="string">cms_block</argument>
+            <argument name="idParam" xsi:type="string">block_id</argument>
+            <argument name="layoutHandle" xsi:type="string">hryvinskyi_adminactionlog_record_activity_cms_block</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Model\RecordActivity\CustomerPage" type="Hryvinskyi\AdminActionLog\Model\RecordActivity\RecordPage">
+        <arguments>
+            <argument name="searchKey" xsi:type="string">customer</argument>
+            <argument name="entityType" xsi:type="string">customer</argument>
+            <argument name="idParam" xsi:type="string">id</argument>
+            <argument name="layoutHandle" xsi:type="string">hryvinskyi_adminactionlog_record_activity_customer</argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\AdminActionLog\Observer\RecordActivity\AddActivityPanel">
+        <arguments>
+            <argument name="pages" xsi:type="array">
+                <item name="catalog_product_edit" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\ProductPage</item>
+                <item name="catalog_category_edit" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CategoryPage</item>
+                <item name="cms_page_edit" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsPagePage</item>
+                <item name="cms_block_edit" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsBlockPage</item>
+                <item name="customer_index_edit" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CustomerPage</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="Hryvinskyi\AdminActionLog\Ui\Component\Control\ProductActivityButton" type="Hryvinskyi\AdminActionLog\Ui\Component\Control\ActivityButton">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\ProductPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\ProductActivityPanel" type="Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\ProductPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Ui\Component\Control\CategoryActivityButton" type="Hryvinskyi\AdminActionLog\Ui\Component\Control\ActivityButton">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CategoryPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\CategoryActivityPanel" type="Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CategoryPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Ui\Component\Control\CmsPageActivityButton" type="Hryvinskyi\AdminActionLog\Ui\Component\Control\ActivityButton">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsPagePage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\CmsPageActivityPanel" type="Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsPagePage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Ui\Component\Control\CmsBlockActivityButton" type="Hryvinskyi\AdminActionLog\Ui\Component\Control\ActivityButton">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsBlockPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\CmsBlockActivityPanel" type="Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CmsBlockPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\Ui\Component\Control\CustomerActivityButton" type="Hryvinskyi\AdminActionLog\Ui\Component\Control\ActivityButton">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CustomerPage</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\CustomerActivityPanel" type="Hryvinskyi\AdminActionLog\ViewModel\RecordActivityPanel">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\CustomerPage</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Each setting's history on Stores › Configuration: a button after the control, for settings that store a value -->
+    <type name="Magento\Config\Block\System\Config\Form\Field">
+        <plugin name="hryvinskyi_admin_action_log_config_history" type="Hryvinskyi\AdminActionLog\Plugin\Config\AddHistoryButton"/>
+    </type>
+    <type name="Hryvinskyi\AdminActionLog\Model\ConfigHistory\StoredSetting">
+        <arguments>
+            <argument name="displayOnlyTypes" xsi:type="array">
+                <item name="button" xsi:type="string">button</item>
+                <item name="label" xsi:type="string">label</item>
+                <item name="note" xsi:type="string">note</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Hints under the product fields changed in the last days -->
+    <virtualType name="Hryvinskyi\AdminActionLog\ViewModel\ProductFieldHints" type="Hryvinskyi\AdminActionLog\ViewModel\RecordFieldHints">
+        <arguments>
+            <argument name="page" xsi:type="object">Hryvinskyi\AdminActionLog\Model\RecordActivity\ProductPage</argument>
         </arguments>
     </virtualType>
 </config>

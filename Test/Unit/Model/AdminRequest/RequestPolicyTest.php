@@ -32,6 +32,17 @@ class RequestPolicyTest extends TestCase
         );
     }
 
+    public function testPatternsAsAnAdminTypedThemIgnoreCaseToo(): void
+    {
+        $policy = $this->policy(
+            ['enabled' => '1', 'get' => '0', 'ignored' => 'Sales/Order/addComment, cms/*/MassDelete*']
+        );
+
+        self::assertFalse($policy->shouldRecord('sales/order/addComment', 'POST'));
+        self::assertFalse($policy->shouldRecord('cms/page/massDelete', 'POST'));
+        self::assertTrue($policy->shouldRecord('sales/order/hold', 'POST'));
+    }
+
     public function testRecordsPageViewsWhenAskedButNeverHeadOrOptions(): void
     {
         $policy = $this->policy(['enabled' => '1', 'get' => '1', 'ignored' => '']);

@@ -13,7 +13,7 @@
             <admin>
                 <enabled>1</enabled>
                 <log_get_requests>0</log_get_requests>
-                <ignored_routes>mui/*,*/*/validate*,adminhtml/index/index,adminhtml/system_config/state,adminhtml/notification/*,adminhtml/system_message/*,adminhtml/index/globalSearch,adminhtml/dashboard/*,adminhtml/ui_bookmark/*,cms/wysiwyg_images/*,hryvinskyi_activitylog/dashboard/*</ignored_routes>
+                <ignored_routes>mui/*,*/*/validate*,adminhtml/index/index,adminhtml/system_config/state,adminhtml/notification/*,adminhtml/system_message/*,adminhtml/index/globalSearch,adminhtml/dashboard/*,adminhtml/ui_bookmark/*,cms/wysiwyg_images/*,hryvinskyi_activitylog/dashboard/*,hryvinskyi_activitylog/activity/search,hryvinskyi_activitylog/activity/suggest,hryvinskyi_activitylog/activity/savePreference</ignored_routes>
                 <retention_days>90</retention_days>
             </admin>
             <entity>
