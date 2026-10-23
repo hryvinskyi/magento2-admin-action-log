@@ -15,7 +15,11 @@ use Magento\Framework\Data\Collection\EntityFactoryInterface;
 use Magento\Framework\Model\AbstractModel;
 
 /**
- * An entity stored as EAV attributes: its fields are its attributes
+ * An entity stored as EAV attributes: its fields are its attributes, apart from the entity's id
+ *
+ * The id names the record a change is about; it is never one of its fields, as a table's key column is not. Magento
+ * answers it as a static attribute of every EAV entity, so a save that sees it for the first time (a record saved
+ * twice while it is created) would list it as changed.
  *
  * The stored state is loaded into a fresh model in the store the change is made in, so nothing loading triggers
  * (observers adding stock data, extension attributes) reaches the model being saved. A field's input type is its
@@ -42,7 +46,7 @@ class EavStorage implements EntityStorageInterface, FieldInputTypesInterface
      */
     public function isField(string $field): bool
     {
-        return $this->resource->getAttribute($field) !== false;
+        return $field !== $this->resource->getEntityIdField() && $this->resource->getAttribute($field) !== false;
     }
 
     /**

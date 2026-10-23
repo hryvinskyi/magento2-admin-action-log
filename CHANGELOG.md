@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-23
+
+### Changed
+- A customer account changed while nobody is signed in (signing up, resetting a forgotten password, confirming the
+  email address) is recorded as the customer's own change instead of "anonymous" (`Model\EntityChange\OwnAccountActors`).
+
+### Fixed
+- The id of an EAV record (customer, product, category) is no longer listed as a changed field when the record is saved
+  again in the request that created it.
+
 ## [1.2.0] - 2026-10-23
 
 ### Added

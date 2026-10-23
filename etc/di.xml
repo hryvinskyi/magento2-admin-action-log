@@ -178,7 +178,6 @@
             <argument name="modelClass" xsi:type="string">Magento\Catalog\Model\Category</argument>
             <argument name="ignoredFields" xsi:type="array">
                 <item name="children_count" xsi:type="string">children_count</item>
-                <item name="entity_id" xsi:type="string">entity_id</item>
             </argument>
             <argument name="labelFields" xsi:type="array">
                 <item name="name" xsi:type="string">name</item>
@@ -186,6 +185,15 @@
             <argument name="labelPattern" xsi:type="string">%1$s %2$s (#%3$s)</argument>
         </arguments>
     </virtualType>
+    <!-- Account entities, with the user type their holders sign in as (UserContextInterface::USER_TYPE_*): a change
+         of one made while nobody is signed in is its holder's -->
+    <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\OwnAccountActors">
+        <arguments>
+            <argument name="ownAccounts" xsi:type="array">
+                <item name="customer" xsi:type="number">3</item>
+            </argument>
+        </arguments>
+    </type>
     <virtualType name="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\CustomerStorage" type="Hryvinskyi\AdminActionLog\Model\EntityChange\Storage\EavStorage">
         <arguments>
             <argument name="resource" xsi:type="object">Magento\Customer\Model\ResourceModel\Customer\Proxy</argument>

@@ -11,6 +11,12 @@ namespace Hryvinskyi\AdminActionLog\Test\Unit\Model\EntityChange;
 
 use Hryvinskyi\ActivityLog\Api\ActivityBuilderInterface;
 use Hryvinskyi\ActivityLog\Api\ActivityRecorderInterface;
+use Hryvinskyi\ActivityLog\Api\ActorContextInterface;
+use Hryvinskyi\ActivityLog\Api\Data\ActorInterface;
+use Hryvinskyi\ActivityLog\Api\Data\ActorType;
+use Hryvinskyi\ActivityLog\Api\UserActorsInterface;
+use Hryvinskyi\ActivityLog\Model\Actor\ActorScope;
+use Hryvinskyi\ActivityLog\Model\Data\Actor;
 use Hryvinskyi\ActivityLog\Api\Data\ActivityInterface;
 use Hryvinskyi\ActivityLog\Api\Data\Outcome;
 use Hryvinskyi\ActivityLog\Api\Data\SubjectInterface;
@@ -27,8 +33,10 @@ use Hryvinskyi\AdminActionLog\Model\EntityChange\Comparison\FieldEquivalences;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\DiffMode;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\EntityTypeSettings;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\FieldDiffer;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\OwnAccountActors;
 use Hryvinskyi\AdminActionLog\Model\RequestSubjects;
 use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -69,9 +77,72 @@ class ChangeWriterTest extends TestCase
      */
     private SubmittedForm $form;
 
+    /**
+     * Who the request is, before any change is written
+     *
+     * @var ActorType
+     */
+    private ActorType $requestActor = ActorType::Admin;
+
+    /**
+     * The scope changes are attributed through
+     *
+     * @var ActorScope
+     */
+    private ActorScope $actorScope;
+
+    /**
+     * The actor each journaled change was attributed to
+     *
+     * @var list<string>
+     */
+    private array $attributedTo = [];
+
     protected function setUp(): void
     {
         $this->form = new SubmittedForm();
+        $this->actorScope = new ActorScope();
+    }
+
+    /**
+     * @return array<string, array{ActorType, string, string}>
+     */
+    public static function accountChanges(): array
+    {
+        return [
+            'signing up: the holder' => [ActorType::Anonymous, 'customer', 'customer Jane Doe #42'],
+            'a guest request: the holder' => [ActorType::Guest, 'customer', 'customer Jane Doe #42'],
+            'an admin: the admin' => [ActorType::Admin, 'customer', 'request'],
+            'not an account: the request' => [ActorType::Anonymous, 'product', 'request'],
+        ];
+    }
+
+    /**
+     * @param ActorType $requestActor
+     * @param string $entityCode
+     * @param string $expected
+     */
+    #[DataProvider('accountChanges')]
+    public function testAnAccountChangedWhileNobodyIsSignedInIsItsHolders(
+        ActorType $requestActor,
+        string $entityCode,
+        string $expected
+    ): void {
+        $this->requestActor = $requestActor;
+
+        $this->writer()->write(
+            $this->entity($entityCode),
+            '42',
+            ChangeOperation::Update,
+            ['password_hash' => 'old'],
+            ['password_hash' => 'new'],
+            static fn (): string => 'Customer #42',
+            new EntityScope(),
+            static fn (string $field): bool => true
+        );
+
+        self::assertSame([$expected], $this->attributedTo);
+        self::assertNull($this->actorScope->resolve(), 'The holder is the actor of the change only');
     }
 
     public function testAChangeInWhichNoFieldChangedIsNotWritten(): void
@@ -269,7 +340,14 @@ class ChangeWriterTest extends TestCase
         );
 
         $recorder = $this->createMock(ActivityRecorderInterface::class);
-        $recorder->method('record')->willReturnCallback(fn (): ?int => $this->activityId);
+        $recorder->method('record')->willReturnCallback(function (): ?int {
+            $actor = $this->actorScope->resolve();
+            $this->attributedTo[] = $actor === null
+                ? 'request'
+                : sprintf('%s %s #%s', $actor->getType()->value, $actor->getName(), $actor->getId());
+
+            return $this->activityId;
+        });
 
         $subjects = $this->createMock(SubjectInterfaceFactory::class);
         $subjects->method('create')->willReturnCallback(function (array $data): SubjectInterface {
@@ -315,15 +393,53 @@ class ChangeWriterTest extends TestCase
             new RequestSubjects(),
             new AutomaticFields($this->form, $differ, [
                 'product' => ['id' => ['id'], 'values' => ['product[{field}]']],
-            ])
+            ]),
+            new OwnAccountActors($this->actorContext(), $this->userActors(), ['customer' => '3']),
+            $this->actorScope
         );
     }
 
-    private function entity(): TrackedEntityInterface
+    /**
+     * The request's actor, of the type the test chose
+     *
+     * @return ActorContextInterface
+     */
+    private function actorContext(): ActorContextInterface
+    {
+        $context = $this->createMock(ActorContextInterface::class);
+        $context->method('current')->willReturnCallback(
+            fn (): ActorInterface => new Actor($this->requestActor, $this->requestActor->value)
+        );
+
+        return $context;
+    }
+
+    /**
+     * Customer 42 is Jane Doe
+     *
+     * @return UserActorsInterface
+     */
+    private function userActors(): UserActorsInterface
+    {
+        $userActors = $this->createMock(UserActorsInterface::class);
+        $userActors->method('actorOf')->willReturnCallback(
+            static fn (int $userType, int $userId): ?ActorInterface => $userType === 3 && $userId === 42
+                ? new Actor(ActorType::Customer, 'Jane Doe', '42')
+                : null
+        );
+
+        return $userActors;
+    }
+
+    /**
+     * @param string $code
+     * @return TrackedEntityInterface
+     */
+    private function entity(string $code = 'product'): TrackedEntityInterface
     {
         $entity = $this->createMock(TrackedEntityInterface::class);
-        $entity->method('getCode')->willReturn('product');
-        $entity->method('getLabel')->willReturn('Product');
+        $entity->method('getCode')->willReturn($code);
+        $entity->method('getLabel')->willReturn(ucfirst($code));
 
         return $entity;
     }

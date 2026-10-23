@@ -11,6 +11,7 @@ namespace Hryvinskyi\AdminActionLog\Model\EntityChange;
 
 use Hryvinskyi\ActivityLog\Api\ActivityBuilderInterface;
 use Hryvinskyi\ActivityLog\Api\ActivityRecorderInterface;
+use Hryvinskyi\ActivityLog\Api\ActorScopeInterface;
 use Hryvinskyi\ActivityLog\Api\Data\Outcome;
 use Hryvinskyi\ActivityLog\Api\Data\SubjectInterface;
 use Hryvinskyi\ActivityLog\Api\Data\SubjectInterfaceFactory;
@@ -34,6 +35,8 @@ use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
  * Each changed field is marked when it was set automatically: changed while an admin saved the record's form although
  * the form did not ask for it (AutomaticFields). Secret fields are never marked. The mark is kept with the field; the
  * change and the journal are written the same either way.
+ *
+ * A change of an account made while nobody was signed in is written as its holder's (OwnAccountActors).
  */
 class ChangeWriter
 {
@@ -50,6 +53,8 @@ class ChangeWriter
      * @param EntityChangeStore $store
      * @param RequestSubjects $requestSubjects
      * @param AutomaticFields $automaticFields
+     * @param OwnAccountActors $ownAccountActors
+     * @param ActorScopeInterface $actorScope
      */
     public function __construct(
         private readonly EntityTypeSettings $settings,
@@ -59,7 +64,9 @@ class ChangeWriter
         private readonly SubjectInterfaceFactory $subjectFactory,
         private readonly EntityChangeStore $store,
         private readonly RequestSubjects $requestSubjects,
-        private readonly AutomaticFields $automaticFields
+        private readonly AutomaticFields $automaticFields,
+        private readonly OwnAccountActors $ownAccountActors,
+        private readonly ActorScopeInterface $actorScope
     ) {
     }
 
@@ -100,7 +107,7 @@ class ChangeWriter
         $entityId = $entityId === null || $entityId === '' ? null : mb_substr($entityId, 0, self::ID_MAX_LENGTH);
         $name = $this->clip($name());
 
-        $activityId = $this->activityRecorder->record(
+        $journal = fn (): ?int => $this->activityRecorder->record(
             $this->activityBuilder->build(
                 ChannelCode::ENTITY,
                 sprintf('%s %s', $entity->getLabel(), $operation->verb()),
@@ -108,7 +115,9 @@ class ChangeWriter
                 $this->subject($code, $entityId, $this->withFields($name, array_column($changed, 'field')))
             )
         );
-        if ($activityId === null) {
+        $holder = $this->ownAccountActors->actorOf($code, $entityId);
+        $activityId = $holder === null ? $journal() : $this->actorScope->actAs($holder, $journal);
+        if (!is_int($activityId)) {
             return;
         }
 

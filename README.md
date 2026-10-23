@@ -15,6 +15,10 @@ the store's main entities with the value of each field before and after.
     back leaves no record.
   - Changes made by admins, integrations, CLI, cron and anonymous callers are recorded by default. Customers and guests
     are left out unless you choose them.
+  - A customer account changed while nobody is signed in (signing up, resetting a forgotten password, confirming the
+    email address) is recorded as the customer's own change: the actor is the customer, not "anonymous". Other
+    account entities can be added to the `ownAccounts` argument of `Model\EntityChange\OwnAccountActors`.
+  - A record's id is never one of its changed fields.
   - Tracked entities:
     - catalog: products (with their stock: see below), categories, cart and catalog price rules, URL rewrites;
     - customers, orders and order comments;
