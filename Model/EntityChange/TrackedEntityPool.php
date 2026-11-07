@@ -13,7 +13,9 @@ use Hryvinskyi\ActivityLog\Api\SanitizerInterface;
 use Hryvinskyi\AdminActionLog\Api\SecretFieldsInterface;
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityInterface;
 use Hryvinskyi\AdminActionLog\Api\TrackedEntityPartInterface;
+use Hryvinskyi\AdminActionLog\Api\TrackedEntityReadAheadInterface;
 use Magento\Framework\Model\AbstractModel;
+use Psr\Log\LoggerInterface;
 
 /**
  * Entities registered through the "entities" argument, and the models keeping part of their data registered through
@@ -26,6 +28,12 @@ use Magento\Framework\Model\AbstractModel;
  * The pool also holds the one rule telling a secret field, the same for changes of saved models and changes recorded
  * without a model: a field whose name reads as a secret, a field the entity's "secretFields" item names secret from
  * the field alone, or, when the model is at hand, a field the entity calls secret for that model.
+ *
+ * A write recorded for many entities of one kind at once announces them through readAhead() before their fields are
+ * told: each read-ahead registered for that kind in the "readAheads" argument (keyed by entity code, then by item
+ * name) reads what it needs for all of them in one go. A read-ahead of an entity the pool does not track fails the
+ * pool's construction, like a part of one. A read-ahead that fails is logged and the others are still told: what it
+ * did not read is read one entity at a time, so a failed read-ahead never fails the write being recorded.
  */
 class TrackedEntityPool
 {
@@ -52,17 +60,30 @@ class TrackedEntityPool
     private array $secretFields = [];
 
     /**
+     * The read-aheads by entity code, then item name
+     *
+     * @var array<string, array<string, TrackedEntityReadAheadInterface>>
+     */
+    private array $readAheads = [];
+
+    /**
      * @param SanitizerInterface $sanitizer
+     * @param LoggerInterface $logger
      * @param array<string,TrackedEntityInterface> $entities
      * @param array<string,TrackedEntityPartInterface> $parts
      * @param array<string,SecretFieldsInterface> $secretFields Keyed by tracked entity code
-     * @throws \InvalidArgumentException When a part belongs to no registered entity, or repeats another one's class
+     * @param array<string,array<string,TrackedEntityReadAheadInterface>> $readAheads Keyed by tracked entity code,
+     *     then by item name
+     * @throws \InvalidArgumentException When a part or a read-ahead belongs to no registered entity, or a part
+     *     repeats another one's class
      */
     public function __construct(
         private readonly SanitizerInterface $sanitizer,
+        private readonly LoggerInterface $logger,
         array $entities = [],
         array $parts = [],
-        array $secretFields = []
+        array $secretFields = [],
+        array $readAheads = []
     ) {
         foreach ($entities as $entity) {
             $this->byCode[$entity->getCode()] = $entity;
@@ -74,6 +95,10 @@ class TrackedEntityPool
 
         foreach ($secretFields as $code => $fields) {
             $this->addSecretFields((string) $code, $fields);
+        }
+
+        foreach ($readAheads as $code => $named) {
+            $this->addReadAheads((string) $code, $named);
         }
     }
 
@@ -130,6 +155,33 @@ class TrackedEntityPool
     public function all(): array
     {
         return array_values($this->byCode);
+    }
+
+    /**
+     * Let the read-aheads of the entity kind read what telling the fields of these entities needs, in one go
+     *
+     * Each read-ahead is told on its own: one that fails is logged, and the next is still told.
+     *
+     * @param string $code Tracked entity code
+     * @param list<string> $entityIds
+     * @return void
+     */
+    public function readAhead(string $code, array $entityIds): void
+    {
+        if ($entityIds === []) {
+            return;
+        }
+
+        foreach ($this->readAheads[$code] ?? [] as $name => $readAhead) {
+            try {
+                $readAhead->readAhead($entityIds);
+            } catch (\Throwable $exception) {
+                $this->logger->error(
+                    sprintf('The read-ahead "%s" of "%s" failed; its entities are read one at a time.', $name, $code),
+                    ['exception' => $exception]
+                );
+            }
+        }
     }
 
     /**
@@ -196,5 +248,42 @@ class TrackedEntityPool
     private function addSecretFields(string $code, SecretFieldsInterface $fields): void
     {
         $this->secretFields[$code] = $fields;
+    }
+
+    /**
+     * Register the read-aheads of an entity kind, keyed by item name; anything else in the argument fails here
+     *
+     * @param string $code
+     * @param array<string,TrackedEntityReadAheadInterface> $named
+     * @return void
+     * @throws \InvalidArgumentException When the entity is not registered
+     */
+    private function addReadAheads(string $code, array $named): void
+    {
+        foreach ($named as $name => $readAhead) {
+            $this->addReadAhead($code, (string) $name, $readAhead);
+        }
+    }
+
+    /**
+     * Register a read-ahead of an entity kind; anything else in the item fails here
+     *
+     * @param string $code
+     * @param string $name
+     * @param TrackedEntityReadAheadInterface $readAhead
+     * @return void
+     * @throws \InvalidArgumentException When the entity is not registered
+     */
+    private function addReadAhead(string $code, string $name, TrackedEntityReadAheadInterface $readAhead): void
+    {
+        if (!isset($this->byCode[$code])) {
+            throw new \InvalidArgumentException(sprintf(
+                'The read-ahead "%s" belongs to "%s", which is not a tracked entity.',
+                $name,
+                $code
+            ));
+        }
+
+        $this->readAheads[$code][$name] = $readAhead;
     }
 }

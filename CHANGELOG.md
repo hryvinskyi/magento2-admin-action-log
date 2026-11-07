@@ -5,6 +5,73 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - unreleased
+
+### Added
+- The stock a product import writes is recorded as a change of each product whose stock row changed, the way a saved
+  stock item is: through the tracked entity pool's `product_stock_item` part, so a module that records part of the
+  stock from another source keeps it recorded once (`Plugin\CatalogImportExport\RecordStockImport`). The rows of a
+  batch are read once before and once after the import's write. Where the importer's other plugins then derive a
+  composite product's stock status from the imported children (a store without per-source stock), they save the
+  parent's stock item through the stock item repository, and that save is recorded like any saved stock item: a
+  parent inside the batch shows the imported status and then the derived one.
+- `Api\TrackedEntityReadAheadInterface` and the tracked entity pool's `readAheads` argument (keyed by entity code,
+  then item name): a write recorded for many entities at once announces them first, so whatever an entity or its part
+  needs for each of them is read in one go instead of once per entity. The pool tells each read-ahead on its own: one
+  that throws, whatever it throws, is logged, the next is still told, and the write is recorded one entity at a time,
+  so a read-ahead never fails what is being recorded.
+
+### Changed
+- A call of the stock's quantity correction (`correctItemsQty`, one query past the stock item, which the classic
+  inventory makes for an order placed, cancelled or refunded) is recorded through the tracked entity pool's
+  `product_stock_item` part too, instead of as a `qty` field the correction plugin chose itself
+  (`Plugin\CatalogInventory\RecordStockCorrection`). A module that replaces that part to record part of the stock from
+  another source now rules corrections as it rules saved stock items and imports, so a correction is recorded once;
+  the change carries the stock item's scope, as a saved stock item's does. Who made the correction is recorded as
+  before. A store that keeps its stock per source places reservations for orders and never reaches the correction, so
+  nothing is recorded for its sales; only a direct caller of the correction is.
+- A correction's change is exact when several requests correct the same products at once. The stock rows are read
+  once, right after the correction's write and inside a transaction around it (part of the caller's transaction when
+  it holds one), and the rows before are told from them and the correction's own quantities and operator
+  (`Model\EntityChange\StockItem\CorrectedRows`) instead of being read before the correction, where a concurrent sale
+  could fall between the two reads. The rows are read through the stock's own connection, the one the transaction is
+  on, even where the stock item tables are given a connection of their own. Nothing is wrapped while stock changes are
+  not recorded. A correction whose write fails rolls back every transaction level opened since it was called, the
+  stock's own inner one included, so the request is never left inside an open transaction.
+- `Model\EntityChange\TrackedEntityPool` takes a `Psr\Log\LoggerInterface` as its second constructor argument.
+- Requires `magento/module-catalog-import-export`.
+- Requires `hryvinskyi/magento2-configuration-fields` 1.1 or later, whose widget fields the history button's placement
+  tests render.
+- The element data key of the settings' history button moved from `Model\ConfigHistory\HistoryButton::ELEMENT_DATA`
+  to `Model\ConfigHistory\ElementButton::ELEMENT_DATA` (same value).
+- The Activity Log menu entries of this module moved into the menu's groups: **Admin requests** (was "Admin
+  Requests") and **Entity changes** (was "Entity Changes") are under Logs, **Admin logging** (was "Admin Logging
+  Settings") under Settings. Their item names are unchanged.
+- Requires `hryvinskyi/magento2-activity-log` ^1.3, which declares the menu's groups, and
+  `hryvinskyi/magento2-base` ^2.3.
+
+### Removed
+- `Plugin\Config\PrintHistoryButton` (the after plugin on a form element's `getElementHtml()`): it put the button
+  after the first part a frontend model prints. The row printer places every setting's button.
+
+### Fixed
+- The settings' history button takes the admin control's size and top (3.3rem, level with the control), and a
+  setting that never changed keeps the normal border with a softer icon instead of a pale button.
+- The history popover opens just below its button rather than below the whole setting row, and draws no focus ring
+  around itself when it opens.
+- Every setting's history button closes the row's value cell, after the whole control and the setting's comment and
+  outside every label (`Plugin\Config\PrintRowHistoryButton`), so the Tab key reaches it after every part of the
+  control. That gives a button to a setting drawn by a configuration field widget (tag list, cron editor, code
+  editor, category select) and to one drawn by a frontend model that prints no control of Magento's (a table of rows
+  such as this module's own "Per Entity" setting), and puts the button of a control printed in parts (a year range, a
+  date fields order, a month and a day select) after its last part instead of between the first two.
+- A setting's history button is printed once, even when its element is rendered again or a widget also prints the
+  element's own control (`Model\ConfigHistory\ElementButton`).
+- A setting's history button stays usable while the setting inherits its value: the "Use Default" or "Use Website"
+  checkbox disables every control of the setting's value cell, the button included, on load for a table of rows and
+  on every click for every setting; the button is now enabled again right after (a mutation observer on the history
+  buttons only, `config-history/keep-enabled.js`), before the page is drawn or takes input.
+
 ## [1.3.0] - 2026-10-23
 
 ### Changed

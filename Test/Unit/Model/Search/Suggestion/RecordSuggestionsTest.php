@@ -19,6 +19,7 @@ use Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntityPool;
 use Hryvinskyi\AdminActionLog\Model\Search\Record\RecordKeysInterface;
 use Hryvinskyi\AdminActionLog\Model\Search\Suggestion\RecordSuggestions;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * A record is suggested by a value that picks exactly it: its natural key when it has a usable one, else "#<id>"
@@ -77,7 +78,10 @@ class RecordSuggestionsTest extends TestCase
         $provider = new RecordSuggestions(
             $recentSubjects,
             $this->factory(),
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class)),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class)
+            ),
             'rule',
             ['cart' => 'cart_price_rule', 'catalog' => 'catalog_price_rule', 'again' => 'cart_price_rule']
         );
@@ -92,7 +96,10 @@ class RecordSuggestionsTest extends TestCase
         new RecordSuggestions(
             $this->createStub(RecentSubjectsInterface::class),
             $this->factory(),
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class)),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class)
+            ),
             'product',
             []
         );
@@ -119,7 +126,11 @@ class RecordSuggestionsTest extends TestCase
         return new RecordSuggestions(
             $recentSubjects,
             $this->factory(),
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class), $kinds),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
+                $kinds
+            ),
             $entityTypes === ['product'] ? 'product' : 'rule',
             array_combine($entityTypes, $entityTypes),
             $naturalKeys

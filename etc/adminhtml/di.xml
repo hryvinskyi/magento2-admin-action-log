@@ -149,12 +149,11 @@
         </arguments>
     </virtualType>
 
-    <!-- Each setting's history on Stores › Configuration: a button after the control, for settings that store a value -->
+    <!-- Each setting's history on Stores › Configuration, for settings that store a value: the button is handed to the
+         setting's element before its row is rendered, and closes the row's value cell once it is -->
     <type name="Magento\Config\Block\System\Config\Form\Field">
         <plugin name="hryvinskyi_admin_action_log_config_history" type="Hryvinskyi\AdminActionLog\Plugin\Config\AddHistoryButton"/>
-    </type>
-    <type name="Magento\Framework\Data\Form\Element\AbstractElement">
-        <plugin name="hryvinskyi_admin_action_log_config_history" type="Hryvinskyi\AdminActionLog\Plugin\Config\PrintHistoryButton"/>
+        <plugin name="hryvinskyi_admin_action_log_config_history_row" type="Hryvinskyi\AdminActionLog\Plugin\Config\PrintRowHistoryButton"/>
     </type>
     <type name="Hryvinskyi\AdminActionLog\Model\ConfigHistory\StoredSetting">
         <arguments>

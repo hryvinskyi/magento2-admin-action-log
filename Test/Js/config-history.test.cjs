@@ -12,6 +12,7 @@ const {load} = require('./amd.cjs');
 
 const model = load('config-history/history-model');
 const placement = load('config-history/placement');
+const keepEnabled = load('config-history/keep-enabled');
 const grammar = load('Hryvinskyi_ActivityLog/js/search/grammar');
 const request = load('Hryvinskyi_ActivityLog/js/search/request');
 const zone = load('Hryvinskyi_ActivityLog/js/search/zone').create('Europe/Copenhagen', 'en_US');
@@ -289,35 +290,152 @@ test('a masked value stays masked, and an activity without a detail shows no val
     assert.deepEqual([rows[1].scope, rows[1].before, rows[1].after], [null, null, null]);
 });
 
-test('the popover goes just below the row, from the value column, at most as wide as allowed, arrow on the button', () => {
+test('the popover goes just below the button, not below the row, from the value column, at most as wide as allowed, arrow on the button', () => {
     const atBody = {left: 0, top: -300, scrollLeft: 0, scrollTop: 0, clientLeft: 0, clientTop: 0};
 
     assert.deepEqual(plain(placement.place(
         {bottom: 400, right: 1300},
         {left: 500},
-        {left: 820, width: 30},
+        {left: 820, width: 30, bottom: 350},
         atBody,
         560
-    )), {top: 707, left: 500, width: 560, arrowLeft: 329});
+    )), {top: 662, left: 500, width: 560, arrowLeft: 329});
     assert.deepEqual(plain(placement.place(
         {bottom: 400, right: 900},
         {left: 500},
-        {left: 870, width: 30},
+        {left: 870, width: 30, bottom: 350},
         atBody,
         560
-    )), {top: 707, left: 500, width: 400, arrowLeft: 376}, 'A narrow row narrows it; the arrow stays inside');
+    )), {top: 662, left: 500, width: 400, arrowLeft: 376}, 'A narrow row narrows it; the arrow stays inside');
     assert.deepEqual(plain(placement.place(
         {bottom: 140, right: 900},
         {left: 500},
-        {left: 520, width: 30},
+        {left: 520, width: 30, bottom: 120},
         {left: 480, top: 100, scrollLeft: 0, scrollTop: 20, clientLeft: 1, clientTop: 1},
         560
-    )), {top: 66, left: 19, width: 400, arrowLeft: 29}, 'Against a scrolled, bordered parent');
+    )), {top: 51, left: 19, width: 400, arrowLeft: 29}, 'Against a scrolled, bordered parent');
     assert.deepEqual(plain(placement.place(
         {bottom: 400, right: 1760},
         {left: 760},
-        {left: 1686, width: 41},
+        {left: 1686, width: 41, bottom: 350},
         atBody,
         560
-    )), {top: 707, left: 1167, width: 560, arrowLeft: 534}, 'A control as wide as the column: it ends at the button');
+    )), {top: 662, left: 1167, width: 560, arrowLeft: 534}, 'A control as wide as the column: it ends at the button');
+});
+
+/**
+ * A button as the scope toggle and the page see it: a disabled property reflected as an attribute, and classes
+ *
+ * @returns {Object}
+ */
+function fakeButton() {
+    const classes = new Set(['config-history__button']);
+
+    return {
+        disabled: false,
+        classList: {
+            contains: (name) => classes.has(name),
+            add: (name) => classes.add(name),
+            remove: (name) => classes.delete(name)
+        },
+        classes
+    };
+}
+
+/**
+ * A mutation observer the test fires by hand, as the page would after the script that changed the button
+ */
+class FakeObserver {
+    static last = null;
+
+    constructor(callback) {
+        this.callback = callback;
+        this.observed = [];
+        this.disconnected = false;
+        FakeObserver.last = this;
+    }
+
+    observe(target, options) {
+        this.observed.push({target, options});
+    }
+
+    disconnect() {
+        this.disconnected = true;
+    }
+
+    fire(targets) {
+        this.callback(targets.map((target) => ({type: 'attributes', target})));
+    }
+}
+
+/**
+ * What the admin's scope toggle does to every control of an inheriting setting's value cell
+ *
+ * @param {Object} button
+ * @param {boolean} inherits
+ */
+function toggle(button, inherits) {
+    button.disabled = inherits;
+    if (inherits) {
+        button.classList.add('disabled');
+    } else {
+        button.classList.remove('disabled');
+    }
+}
+
+test('a history button the scope toggle disabled before the popover started is enabled when it starts', () => {
+    const button = fakeButton();
+    toggle(button, true);
+
+    keepEnabled.keep([button], FakeObserver, new AbortController().signal);
+
+    assert.equal(button.disabled, false);
+    assert.equal(button.classes.has('disabled'), false);
+    assert.deepEqual(
+        plain(FakeObserver.last.observed.map((entry) => entry.options)),
+        [{attributes: true, attributeFilter: ['disabled', 'class']}],
+        'Only the button\'s disabled state and its classes are watched'
+    );
+    assert.equal(FakeObserver.last.observed[0].target, button);
+});
+
+test('a history button stays enabled however often "Use Default" is ticked and unticked', () => {
+    const button = fakeButton();
+    keepEnabled.keep([button], FakeObserver, new AbortController().signal);
+    const observer = FakeObserver.last;
+
+    [false, true, false, true].forEach((inherits) => {
+        toggle(button, inherits);
+        observer.fire([button]);
+
+        assert.equal(button.disabled, false, inherits ? 'Ticked' : 'Unticked');
+        assert.equal(button.classes.has('disabled'), false);
+        assert.equal(button.classes.has('config-history__button'), true, 'Its own classes stay');
+    });
+});
+
+test('only the history buttons are kept enabled, and the watch ends with the popover', () => {
+    const button = fakeButton();
+    const lifetime = new AbortController();
+    keepEnabled.keep([button], FakeObserver, lifetime.signal);
+    const observer = FakeObserver.last;
+
+    lifetime.abort();
+
+    assert.equal(observer.disconnected, true);
+    assert.equal(observer.observed.length, 1, 'Nothing but the button handed over is observed');
+});
+
+test('nothing is observed without a button, or once the popover is gone', () => {
+    FakeObserver.last = null;
+    keepEnabled.keep([], FakeObserver, new AbortController().signal);
+    assert.equal(FakeObserver.last, null);
+
+    const ended = new AbortController();
+    ended.abort();
+    const button = fakeButton();
+    toggle(button, true);
+    keepEnabled.keep([button], FakeObserver, ended.signal);
+    assert.equal(FakeObserver.last, null);
+    assert.equal(button.disabled, true, 'An ended page is left as it is');
 });

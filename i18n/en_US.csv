@@ -112,3 +112,6 @@
 "set automatically","set automatically"
 "Magento set it on save; the form did not ask for it.","Magento set it on save; the form did not ask for it."
 "The request stopped on an unexpected error. The error is in the exception log.","The request stopped on an unexpected error. The error is in the exception log."
+"Admin requests","Admin requests"
+"Entity changes","Entity changes"
+"Admin logging","Admin logging"

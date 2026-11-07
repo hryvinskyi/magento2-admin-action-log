@@ -295,7 +295,7 @@ class EntityChangeRecorderTest extends TestCase
         }
 
         return new EntityChangeRecorder(
-            new TrackedEntityPool($sanitizer, $entities, [], $secrets),
+            new TrackedEntityPool($sanitizer, $this->createStub(LoggerInterface::class), $entities, [], $secrets),
             $rules,
             $writer,
             $logger,

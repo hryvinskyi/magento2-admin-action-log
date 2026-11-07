@@ -29,8 +29,8 @@ the store's main entities with the value of each field before and after.
   - Encrypted configuration values are never stored in clear text.
 - **Detail panels.** The Activity Log detail page shows an admin request panel and an entity change panel. The change
   panel shows fields grouped by scope.
-- **Menu.** The Activity Log menu gets "Admin Requests" and "Entity Changes" entries. They open the search page on the
-  `admin` and `entity` channels.
+- **Menu.** The Activity Log menu gets "Admin requests" and "Entity changes" under Logs, which open the search page on
+  the `admin` and `entity` channels, and "Admin logging" under Settings, which opens this module's settings.
 - **Search keys.** Entity changes answer keys on the Activity Log search page (see below).
 - **Activity button.** The edit pages of products, categories, CMS pages, CMS blocks and customers get an Activity
   button (see below).
@@ -96,6 +96,21 @@ changes, so "Changes only" is offered on the search page and is on by default.
   endpoint `PUT /V1/products/{sku}/stockItems/{itemId}`, `StockRegistryInterface::updateStockItemBySku()` and
   `StockItemRepositoryInterface::save()`. A stock item saved for the first time (a new product's) is a change of the
   product, not a second creation. Deleting a stock item on its own records nothing: the product's deletion is recorded.
+- A product import (System > Import, the CatalogImportExport importer) writes the stock rows of each batch with one
+  query, past the stock item. Those rows are read before and after that query, and each product whose row changed is
+  recorded the way a saved stock item would be, through the same `product_stock_item` part, so the fields, the name
+  and the rule a replacing part applies are the same. A row the product did not have yet is set from nothing. Where
+  the importer's other plugins then derive a composite product's stock status from the imported children (a store
+  that keeps no stock per source), they save the parent's stock item through the stock item repository, and that save
+  is recorded like any saved stock item: a parent inside the batch can show two changes of its status, the imported
+  one and then the derived one.
+- The stock's quantity correction (`correctItemsQty`) takes or puts back the quantities of its products with one
+  query, past the stock item; the classic inventory calls it for an order placed, cancelled or refunded. Each product
+  whose stock row it moved is recorded through the same `product_stock_item` part, for whoever made the correction.
+  The rows are read once, right after the write and inside a transaction around it, and the rows before are told from
+  them and the correction's own quantities, so corrections of the same product running at once are each recorded with
+  exactly their own amount. A store that keeps its stock per source handles orders with reservations instead and never
+  calls the correction for them; only a direct caller of the correction is recorded there.
 - Another module that records the same values from another source of stock replaces the `product_stock_item` item of
   the tracked entity pool's `parts` argument with a part that leaves those values out
   (`Api\TrackedEntityPartInterface`, for example a decorator of `Model\EntityChange\ProductStockItemPart` that narrows
@@ -172,6 +187,13 @@ These changes stay in the log and are marked **set automatically**.
 ### Settings history
 - A clock icon follows each setting on Stores › Configuration that stores a value. An orange dot means that the setting
   changed in the last 7 days.
+- The icon closes the setting's value column: it comes after the whole control, however the setting draws it
+  (Magento's own controls, a control printed in parts such as a year range, the widgets of
+  `hryvinskyi/magento2-configuration-fields`, a table of rows), and after the setting's comment, so the Tab key reaches
+  it after every part of the control. It is outside every label, so a screen reader does not read it as part of the
+  setting's name.
+- The icon stays usable while a setting inherits its value: "Use Default" (or "Use Website") disables the setting's
+  controls, but not the icon, because the history of an inherited setting is still worth opening.
 - The icon opens a popover with the history of the setting in all scopes: when, who (with the client and channel), the
   scope, and the value before and after. It has Copy for the config path and "Open in Activity Log".
 - A setting that never changed since logging started says so.
@@ -182,7 +204,11 @@ An admin without `Hryvinskyi_ActivityLog::view` sees none of this: no button, no
 These are the stable extension points other modules build on. Their names and contracts are kept within 1.x.
 - **Tracked entities and their parts.** The tracked entity pool (`Model\EntityChange\TrackedEntityPool`) takes
   `entities` (`Api\TrackedEntityInterface`), `parts` (`Api\TrackedEntityPartInterface`) and `secretFields`
-  (`Api\SecretFieldsInterface`), each keyed by item name or entity code. The `parts` item `product_stock_item` and the
+  (`Api\SecretFieldsInterface`), each keyed by item name or entity code, and `readAheads`
+  (`Api\TrackedEntityReadAheadInterface`), keyed by entity code, then item name: a write recorded for many entities
+  at once (an import's stock) announces them first, so what an entity or its part needs for each of them is read in
+  one go. A read-ahead that throws is logged and the write is recorded one entity at a time, so a read-ahead never
+  fails what is being recorded. A read-ahead of an entity the pool does not track fails the pool. The `parts` item `product_stock_item` and the
   virtual type `Model\EntityChange\ProductStockItemPart` it holds are stable: a module recording a product's stock
   from another source replaces that item, usually with a decorator of that virtual type. One part per entity and
   model class; a second one fails the pool.
@@ -198,9 +224,9 @@ These are the stable extension points other modules build on. Their names and co
 
 ## Requirements
 - Magento 2.4 with PHP 8.1 or later
-- [`hryvinskyi/magento2-activity-log`](https://github.com/hryvinskyi/magento2-activity-log) ^1.1
-- `hryvinskyi/magento2-base` ^2.2
-- `hryvinskyi/magento2-configuration-fields` ^1.0.11
+- [`hryvinskyi/magento2-activity-log`](https://github.com/hryvinskyi/magento2-activity-log) ^1.3
+- `hryvinskyi/magento2-base` ^2.3
+- `hryvinskyi/magento2-configuration-fields` ^1.1
 
 ## Installation
 ```bash
@@ -245,9 +271,10 @@ ACL: `Hryvinskyi_AdminActionLog::config` for the settings. Viewing the journal u
   marked, and neither is an emptied list.
 - A record named for changes recorded without a model is read once per request: a product renamed earlier in the same
   request keeps the name it had when it was first read.
-- Stock written with plain SQL is recorded only where the stock corrects quantities for a sale, a cancellation or a
-  refund. An import, the update of every item after a stock setting changes, and a per-source quantity copied into
-  the stock item by a module that keeps stock per source are not recorded.
+- Stock written with plain SQL is recorded only where the stock's quantity correction is called (the classic
+  inventory's orders, and any other direct caller), and where a product import writes a batch's stock rows. The update of every item after a stock setting
+  changes, and a per-source quantity copied into the stock item by a module that keeps stock per source, are not
+  recorded.
 - A new product's stock is recorded in the same request as the product's creation, but just before it.
 
 ## License

@@ -6,18 +6,20 @@
 
 /*
  * The settings' history on Stores › Configuration: the clock button after each setting's control (an orange dot for
- * a change of the last days, muted when the setting never changed), and the popover below the setting's row.
+ * a change of the last days, a softer icon when the setting never changed), and the popover just below
+ * the button.
  */
 
-/* The button sits right of the control, inside the value column, level with the control's first line */
+/* The button sits right of the control, inside the value column: the admin theme pads the column's top by 2.2rem and
+   draws its controls 3.3rem tall with a #adadad border, so the button takes the same top, size and border. */
 .accordion .config td.value:has(.config-history) {
     position: relative;
-    padding-right: 4.2rem;
+    padding-right: 4.5rem;
 }
 
 .config-history {
     position: absolute;
-    top: 2.35rem;
+    top: 2.2rem;
     right: 0.4rem;
     display: inline-flex;
 }
@@ -27,8 +29,8 @@
     display: inline-grid;
     place-items: center;
     box-sizing: border-box;
-    width: 3rem;
-    height: 3rem;
+    width: 3.3rem;
+    height: 3.3rem;
     margin: 0;
     padding: 0;
     border: 1px solid #adadad;
@@ -40,8 +42,7 @@
 }
 
 .config-history__button--never {
-    border-color: #e3e3e3;
-    color: #adadad;
+    color: #6b6b6b;
 }
 
 .config-history__button:hover {
@@ -94,12 +95,12 @@
     text-align: left;
 }
 
-.config-history-popover:focus {
-    outline: none;
-}
-
+/* Opening moves focus onto the popover so the keyboard and a screen reader land in it; the open popover is its own
+   visible focus, so it draws no ring around itself (the browser counts that programmatic focus as visible even after
+   a mouse click). The controls inside keep their rings. */
+.config-history-popover:focus,
 .config-history-popover:focus-visible {
-    outline: 2px solid #007bdb;
+    outline: none;
 }
 
 .config-history-popover__arrow {

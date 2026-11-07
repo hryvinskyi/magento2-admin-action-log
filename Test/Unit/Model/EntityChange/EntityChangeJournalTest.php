@@ -139,6 +139,7 @@ class EntityChangeJournalTest extends TestCase
             $rules,
             new TrackedEntityPool(
                 $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
                 ['product' => $product],
                 ['product_stock_item' => $part]
             ),

@@ -5,8 +5,9 @@
  */
 
 /**
- * Where the settings' history popover goes: a small gap below the whole setting row, as wide as the row's value column
- * allows and never wider than the maximum, so it never runs into the "Use system value" column or off a narrow screen.
+ * Where the settings' history popover goes: a small gap below the button that opened it, as wide as the row's value
+ * column allows and never wider than the maximum, so it never runs into the "Use system value" column or off a narrow
+ * screen.
  * It starts where the value column starts; when the button that opened it sits further right than that leaves room
  * for (a control as wide as the column), it moves right until it ends at the button. Its arrow points at the button.
  *
@@ -16,7 +17,7 @@
 define([], function () {
     'use strict';
 
-    var GAP = 7,
+    var GAP = 12,
         ARROW = 12,
         ARROW_MARGIN = 12;
 
@@ -31,9 +32,9 @@ define([], function () {
     }
 
     /**
-     * @param {{bottom: number, right: number}} row The setting row's box
+     * @param {{right: number}} row The setting row's box
      * @param {{left: number}} column The row's value column's box
-     * @param {{left: number, width: number}} button The history button's box
+     * @param {{left: number, width: number, bottom: number}} button The history button's box
      * @param {{left: number, top: number, scrollLeft: number, scrollTop: number, clientLeft: number,
      *     clientTop: number}} parent The offset parent's box, scroll offsets and border widths
      * @param {number} maxWidth
@@ -49,7 +50,7 @@ define([], function () {
             );
 
         return {
-            top: Math.round(row.bottom + GAP - parent.top + parent.scrollTop - parent.clientTop),
+            top: Math.round(button.bottom + GAP - parent.top + parent.scrollTop - parent.clientTop),
             left: Math.round(left - parent.left + parent.scrollLeft - parent.clientLeft),
             width: Math.round(width),
             arrowLeft: Math.round(arrowLeft)

@@ -18,6 +18,7 @@ use Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntityPool;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Serialize\Serializer\Json;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class EntityTypeSettingsTest extends TestCase
 {
@@ -70,7 +71,11 @@ class EntityTypeSettingsTest extends TestCase
 
         return new EntityTypeSettings(
             new Config($scopeConfig, new Json()),
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class), $entities)
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
+                $entities
+            )
         );
     }
 }

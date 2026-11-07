@@ -25,6 +25,7 @@ use Hryvinskyi\AdminActionLog\Model\Search\Record\RecordPresenceInterface;
 use Magento\Backend\Model\UrlInterface;
 use Magento\Framework\AuthorizationInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * @phpstan-import-type RequestDetail from AdminRequestStore
@@ -104,7 +105,11 @@ class DeniedRequestDetailsTest extends TestCase
 
         new DeniedRequestDetails(
             $this->createStub(AdminRequestStore::class),
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class), []),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
+                []
+            ),
             $this->links(),
             $this->createStub(EventDetailInterfaceFactory::class),
             ['cms' => ['entity' => 'cms_block', 'idParams' => ['block_id']]]
@@ -150,9 +155,11 @@ class DeniedRequestDetailsTest extends TestCase
 
         return new DeniedRequestDetails(
             $store,
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class), [
-                'cms_block' => $this->entity('cms_block', 'CMS block'),
-            ]),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
+                ['cms_block' => $this->entity('cms_block', 'CMS block')]
+            ),
             $this->links(),
             $factory,
             ['cms/block' => ['entity' => 'cms_block', 'idParams' => ['block_id', 'entity_id']]],

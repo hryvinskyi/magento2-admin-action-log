@@ -6,14 +6,15 @@
 
 /**
  * The settings' history on Stores › Configuration: each setting's clock button gets its title, and opens a popover
- * below the setting's row with the setting's changes in every scope (config-history/history-model.js holds the rules,
+ * below the button with the setting's changes in every scope (config-history/history-model.js holds the rules,
  * config-history/placement.js the geometry).
  *
  * One popover at a time: opening another closes the first, and so do Esc, the close button and a click outside it.
  * The popover is placed in the setting's value column, right after the button, so the Tab key goes from the button
  * into it; it takes focus when it opens, and Esc and the close button give focus back to the button. Closing drops
  * the search in flight, and an answer for a popover no longer open is ignored. Every request has a deadline;
- * mounting is once per element.
+ * mounting is once per element. A button stays usable while its setting inherits its value, though the scope toggle
+ * disables the rest of the setting's controls (config-history/keep-enabled.js).
  */
 define([
     'Hryvinskyi_ActivityLog/js/search/clock',
@@ -23,8 +24,9 @@ define([
     'Hryvinskyi_ActivityLog/js/timeline/assets',
     'Hryvinskyi_ActivityLog/js/timeline/search-client',
     'Hryvinskyi_AdminActionLog/js/config-history/history-model',
+    'Hryvinskyi_AdminActionLog/js/config-history/keep-enabled',
     'Hryvinskyi_AdminActionLog/js/config-history/placement'
-], function (clockModule, zoneModule, days, wording, timelineAssets, searchClient, model, placement) {
+], function (clockModule, zoneModule, days, wording, timelineAssets, searchClient, model, keepEnabled, placement) {
     'use strict';
 
     var BUTTON = '[data-role="config-history-open"]',
@@ -210,7 +212,7 @@ define([
             retryButton.textContent = shared.wording.retry;
         }
 
-        /** Puts the popover below its setting's row. */
+        /** Puts the popover just below the button that opened it. */
         function place() {
             var node = shown.node,
                 row = shown.button.closest('tr') || shown.button.parentNode,
@@ -359,6 +361,7 @@ define([
             load();
         }
 
+        keepEnabled.keep(Array.from(document.querySelectorAll(BUTTON)), window.MutationObserver, signal);
         document.querySelectorAll(BUTTON).forEach(function (button) {
             try {
                 button.setAttribute('title', model.buttonTitle(settingOf(button), words, formatNumber, relative));

@@ -34,6 +34,7 @@ use Hryvinskyi\AdminActionLog\Model\Search\Record\RecordPresenceInterface;
 use Magento\Backend\Model\UrlInterface;
 use Magento\Framework\AuthorizationInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * Entity changes described for search results, over fakes of the store, the displays and the record links
@@ -434,10 +435,14 @@ class EntityChangeDetailsTest extends TestCase
 
         return new EntityChangeDetails(
             $store,
-            new TrackedEntityPool($this->createStub(SanitizerInterface::class), [
-                'product' => $this->entity('product', 'Product'),
-                'order_comment' => $this->entity('order_comment', 'Order comment'),
-            ]),
+            new TrackedEntityPool(
+                $this->createStub(SanitizerInterface::class),
+                $this->createStub(LoggerInterface::class),
+                [
+                    'product' => $this->entity('product', 'Product'),
+                    'order_comment' => $this->entity('order_comment', 'Order comment'),
+                ]
+            ),
             new FieldDisplays(['product' => $this->productDisplay()]),
             $this->links(),
             new ValueKinds(),

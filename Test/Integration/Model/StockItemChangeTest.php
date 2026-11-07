@@ -9,13 +9,20 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Test\Integration\Model;
 
+use Hryvinskyi\ActivityLog\Api\ActorScopeInterface;
+use Hryvinskyi\ActivityLog\Api\Data\ActorInterfaceFactory;
+use Hryvinskyi\ActivityLog\Api\Data\ActorType;
+use Hryvinskyi\AdminActionLog\Api\EntityChangeRecorderInterface;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\ChangeOperation;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeRecorder;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\StockItem\StockRowChanges;
 use Hryvinskyi\AdminActionLog\Model\EntityChange\TrackedEntityPool;
 use Hryvinskyi\AdminActionLog\Observer\EntityChange\RecordCommittedChange;
 use Hryvinskyi\AdminActionLog\Observer\EntityChange\SnapshotBeforeDelete;
 use Hryvinskyi\AdminActionLog\Observer\EntityChange\SnapshotBeforeSave;
 use Hryvinskyi\AdminActionLog\Model\ResourceModel\EntityChangeStore;
+use Hryvinskyi\AdminActionLog\Plugin\CatalogInventory\RecordStockCorrection;
 use Magento\Catalog\Api\Data\ProductInterfaceFactory;
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Model\Product;
@@ -27,11 +34,14 @@ use Magento\CatalogInventory\Model\ResourceModel\Stock as StockResource;
 use Magento\CatalogInventory\Model\ResourceModel\Stock\Item as StockItemResource;
 use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\Interception\PluginListInterface;
 use Magento\Framework\ObjectManager\ConfigInterface;
 use Magento\Framework\Registry;
 use Magento\TestFramework\Fixture\DbIsolation;
 use Magento\TestFramework\Helper\Bootstrap;
+use Magento\TestFramework\Interception\PluginList as TestPluginList;
 use Magento\TestFramework\ObjectManager as TestObjectManager;
 use PHPUnit\Framework\TestCase;
 
@@ -42,8 +52,8 @@ use PHPUnit\Framework\TestCase;
  *
  * The tests are about the stock item part this module ships. Another module that records stock from another source
  * may replace that part in the tracked entity pool and record changes of its own for the same saves, so each test
- * puts this module's part back in the pool for its duration, and looks only at the changes that carry a field of the
- * stock item (or create the product).
+ * puts this module's part back in the pool for its duration (and has the stock's plugins built again with it), and
+ * looks only at the changes that carry a field of the stock item (or create the product).
  *
  * @phpstan-import-type ChangeDetail from EntityChangeStore
  */
@@ -166,6 +176,80 @@ class StockItemChangeTest extends TestCase
         self::assertSame(['100.0000', '98.0000'], [$fields['qty']['before'] ?? null, $fields['qty']['after'] ?? null]);
     }
 
+    public function testAQuantityACancellationPutsBackIsRecordedForWhoeverCancelled(): void
+    {
+        $admin = self::service(ActorInterfaceFactory::class)->create([
+            'type' => ActorType::Admin,
+            'name' => 'aal-stock-clerk',
+            'id' => '9',
+        ]);
+        $productId = (int) $this->productId;
+        self::service(ActorScopeInterface::class)->actAs(
+            $admin,
+            static function () use ($productId): void {
+                self::service(StockResource::class)->correctItemsQty([$productId => 3], 0, '+');
+            }
+        );
+
+        $change = $this->latestChange();
+        $fields = $this->fieldsByName($change['detail']);
+        self::assertSame(['100.0000', '103.0000'], [$fields['qty']['before'] ?? null, $fields['qty']['after'] ?? null]);
+        self::assertSame('aal-stock-clerk', $change['actor'], 'Recorded for the admin who cancelled');
+    }
+
+    public function testACorrectionWhoseWriteFailsLeavesNoTransactionOpen(): void
+    {
+        $stock = self::service(StockResource::class);
+        $connection = $stock->getConnection();
+        self::assertInstanceOf(AdapterInterface::class, $connection);
+        self::assertSame(0, $connection->getTransactionLevel(), 'No transaction around the correction');
+
+        $failure = $this->failedCorrection($stock);
+
+        self::assertNotNull($failure, 'The correction\'s failure is thrown');
+        self::assertSame(0, $connection->getTransactionLevel(), 'Its own transaction is rolled back, not left open');
+        $connection->beginTransaction();
+        $connection->commit();
+        self::assertSame(0, $connection->getTransactionLevel(), 'The next transaction commits normally');
+        self::assertEquals(100, (float) $this->stockItem()->getQty(), 'Nothing was written');
+    }
+
+    public function testACorrectionWhoseWriteFailsInsideTheCallersTransactionLeavesThatTransactionToTheCaller(): void
+    {
+        $stock = self::service(StockResource::class);
+        $connection = $stock->getConnection();
+        self::assertInstanceOf(AdapterInterface::class, $connection);
+        $connection->beginTransaction();
+        try {
+            self::assertNotNull($this->failedCorrection($stock), 'The correction\'s failure is thrown');
+            self::assertSame(1, $connection->getTransactionLevel(), 'Back to the caller\'s own transaction');
+        } finally {
+            while ($connection->getTransactionLevel() > 0) {
+                $connection->rollBack();
+            }
+        }
+    }
+
+    /**
+     * A correction whose query the database refuses, after the stock opened its own transaction for it; its failure
+     *
+     * The operator is put into the query as it is, so one naming a column that does not exist makes the update fail
+     * without writing anything.
+     *
+     * @param StockResource $stock
+     * @return \Throwable|null
+     */
+    private function failedCorrection(StockResource $stock): ?\Throwable
+    {
+        try {
+            $stock->correctItemsQty([(int) $this->productId => 2], 0, '+ zz_no_such_column +');
+        } catch (\Throwable $failure) {
+            return $failure;
+        }
+
+        return null;
+    }
+
     public function testGoingOutOfStockIsRecordedAsTheStockStatus(): void
     {
         $item = $this->stockItem();
@@ -238,6 +322,9 @@ class StockItemChangeTest extends TestCase
     /**
      * Give the tracked entity pool these parts, and forget the services built with the pool they had
      *
+     * The stock's plugins are kept by the interception once built, so the plugin list is reloaded too: the next
+     * correction builds its plugin with these parts.
+     *
      * @param mixed $parts The "parts" argument as the container's configuration holds it
      * @return void
      */
@@ -253,9 +340,18 @@ class StockItemChangeTest extends TestCase
             SnapshotBeforeSave::class,
             SnapshotBeforeDelete::class,
             RecordCommittedChange::class,
+            EntityChangeRecorder::class,
+            EntityChangeRecorderInterface::class,
+            StockRowChanges::class,
+            StockRowChanges::class . '\\Proxy',
+            RecordStockCorrection::class,
         ] as $built) {
             $objectManager->removeSharedInstance($built);
         }
+
+        $plugins = $objectManager->get(PluginListInterface::class);
+        self::assertInstanceOf(TestPluginList::class, $plugins);
+        $plugins->reset();
     }
 
     /**
@@ -321,7 +417,7 @@ class StockItemChangeTest extends TestCase
 
     /**
      * @param string|null $action
-     * @return array{action: string, subject: string, detail: ChangeDetail}
+     * @return array{action: string, subject: string, actor: string, detail: ChangeDetail}
      */
     private function latestChange(?string $action = null): array
     {
@@ -344,10 +440,16 @@ class StockItemChangeTest extends TestCase
         self::assertIsNumeric($row['entity_id'] ?? null);
         self::assertIsString($row['action'] ?? null);
         self::assertIsString($row['subject_label'] ?? null);
+        self::assertIsString($row['actor_name'] ?? null);
         $detail = self::service(EntityChangeStore::class)->find((int) $row['entity_id']);
         self::assertNotNull($detail, 'The change has no field detail.');
 
-        return ['action' => $row['action'], 'subject' => $row['subject_label'], 'detail' => $detail];
+        return [
+            'action' => $row['action'],
+            'subject' => $row['subject_label'],
+            'actor' => $row['actor_name'],
+            'detail' => $detail,
+        ];
     }
 
     /**

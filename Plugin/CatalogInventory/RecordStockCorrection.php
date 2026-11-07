@@ -9,39 +9,41 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\AdminActionLog\Plugin\CatalogInventory;
 
-use Hryvinskyi\AdminActionLog\Api\Data\EntityChangeInterface;
-use Hryvinskyi\AdminActionLog\Api\Data\EntityChangeInterfaceFactory;
-use Hryvinskyi\AdminActionLog\Api\EntityChangeRecorderInterface;
+use Hryvinskyi\AdminActionLog\Model\EntityChange\StockItem\StockRowChanges;
 use Magento\CatalogInventory\Model\ResourceModel\Stock;
-use Psr\Log\LoggerInterface;
+use Magento\Framework\DB\Adapter\AdapterInterface;
 
 /**
- * Records the quantities a sale, a cancelled sale or a return took from or put back into products' stock
+ * Records the quantities a direct correction of products' stock took from or put back into them
  *
- * The stock corrects quantities with one query, past the stock item save, when a store keeps its stock without
- * sources: an order placed takes its quantities, a cancellation or a credit memo puts them back. The quantities are
- * read before and after the correction, and each product whose quantity moved is recorded as a change of the
- * product, for whoever placed, cancelled or refunded. Reading and recording never fail the correction.
+ * The stock corrects quantities with one query, past the stock item model, for whoever calls it: the classic
+ * inventory does for an order placed, cancelled or refunded. Each product whose stock item row the correction moved is
+ * recorded through the stock item part of the tracked entity pool, the way a saved stock item is, for whoever made
+ * the correction. Where a product's stock is recorded from another source too, the part as wired leaves those fields
+ * out of the stock item's change, so the correction is recorded once, from that source.
+ *
+ * The change is exact however many requests correct the same products at once. The rows are read once, right after
+ * the correction's write, inside a transaction around it and through the stock's own connection, the one that
+ * transaction is on, so the write's row locks keep every other write out until they are read; the rows before are
+ * told from them and the correction's own quantities and operator, never read separately, so no other write can fall
+ * between the two states recorded. When the caller already holds a transaction (placing an order locks the products'
+ * stock in one), this one is part of it. Nothing is wrapped or read while stock item changes are not recorded.
+ * Reading and recording never fail the correction. A correction that fails rolls back every transaction level opened
+ * since it was called, its own inner one included, and fails as it did: with no transaction around, its write is
+ * rolled back; inside the caller's, that transaction is left marked as rolled back, for the caller to end.
  */
 class RecordStockCorrection
 {
-    private const PRODUCT = 'product';
-    private const QTY = 'qty';
-
     /**
-     * @param EntityChangeRecorderInterface $recorder
-     * @param EntityChangeInterfaceFactory $changeFactory
-     * @param LoggerInterface $logger
+     * @param StockRowChanges $changes
      */
     public function __construct(
-        private readonly EntityChangeRecorderInterface $recorder,
-        private readonly EntityChangeInterfaceFactory $changeFactory,
-        private readonly LoggerInterface $logger
+        private readonly StockRowChanges $changes
     ) {
     }
 
     /**
-     * Correct the quantities, and record how each product's moved
+     * Correct the quantities, and record how each product's stock moved
      *
      * @param Stock $subject
      * @param callable $proceed
@@ -50,86 +52,83 @@ class RecordStockCorrection
      * @param mixed $websiteId
      * @param mixed $operator
      * @return mixed
+     * @throws \Throwable What the correction throws
      */
     public function aroundCorrectItemsQty(Stock $subject, callable $proceed, array $items, $websiteId, $operator): mixed
     {
-        $productIds = array_values(array_filter(array_keys($items), 'is_int'));
-        $before = $this->quantities($subject, $productIds, $websiteId);
-        $result = $proceed($items, $websiteId, $operator);
-        if ($before === null) {
-            return $result;
+        $quantities = $this->quantities($items);
+        $connection = $quantities === [] || !is_numeric($websiteId) || !is_string($operator)
+            ? null
+            : $this->connection($subject);
+        if ($connection === null || !$this->changes->isRecorded()) {
+            return $proceed($items, $websiteId, $operator);
         }
 
+        $level = $connection->getTransactionLevel();
+        $connection->beginTransaction();
         try {
-            $this->recorder->recordAll($this->changes($before, $this->quantities($subject, $productIds, $websiteId)));
+            $result = $proceed($items, $websiteId, $operator);
         } catch (\Throwable $exception) {
-            $this->logger->error('The correction of products\' stock could not be recorded.', [
-                'exception' => $exception,
-            ]);
+            $this->rollBackTo($connection, $level);
+            throw $exception;
+        }
+        $after = $this->changes->rows(array_keys($quantities), $connection);
+        $connection->commit();
+
+        if ($after !== null) {
+            $this->changes->recordCorrection($after, $quantities, (int) $websiteId, $operator);
         }
 
         return $result;
     }
 
     /**
-     * The stored quantity of each product, keyed by product id; null when it could not be read
+     * Roll the connection back to the transaction level it had before the correction
      *
-     * @param Stock $stock
-     * @param list<int> $productIds
-     * @param mixed $websiteId
-     * @return array<int,string|null>|null
+     * The correction opens a transaction of its own inside this one and leaves it open when its write fails, so one
+     * roll-back would only leave that inner level, and the transaction would stay open for the rest of the request.
+     * Every level opened since is rolled back: with no transaction around, the database rolls back; inside the
+     * caller's, that transaction is left marked as rolled back, for the caller to end.
+     *
+     * @param AdapterInterface $connection
+     * @param int $level
+     * @return void
      */
-    private function quantities(Stock $stock, array $productIds, mixed $websiteId): ?array
+    private function rollBackTo(AdapterInterface $connection, int $level): void
     {
-        if ($productIds === []) {
-            return null;
-        }
-
-        try {
-            $connection = $stock->getConnection();
-            if ($connection === false) {
-                return null;
-            }
-
-            $quantities = [];
-            foreach ($connection->fetchPairs(
-                $connection->select()
-                    ->from($stock->getTable('cataloginventory_stock_item'), ['product_id', self::QTY])
-                    ->where('product_id IN (?)', $productIds)
-                    ->where('website_id = ?', is_numeric($websiteId) ? (int) $websiteId : 0)
-            ) as $productId => $qty) {
-                $quantities[(int) $productId] = is_scalar($qty) ? (string) $qty : null;
-            }
-
-            return $quantities;
-        } catch (\Throwable $exception) {
-            $this->logger->error('The stock of products could not be read around a correction.', [
-                'exception' => $exception,
-            ]);
-
-            return null;
+        while ($connection->getTransactionLevel() > $level) {
+            $connection->rollBack();
         }
     }
 
     /**
-     * A change of each product whose quantity moved
+     * The quantities of the correction, keyed by the ids of the products it moves
      *
-     * @param array<int,string|null> $before
-     * @param array<int,string|null>|null $after
-     * @return list<EntityChangeInterface>
+     * @param array<mixed> $items
+     * @return array<int,float|int|string>
      */
-    private function changes(array $before, ?array $after): array
+    private function quantities(array $items): array
     {
-        $changes = [];
-        foreach ($before as $productId => $quantity) {
-            $now = $after[$productId] ?? null;
-            if ($after !== null && $now !== $quantity) {
-                $changes[] = $this->changeFactory->create()
-                    ->withEntity(self::PRODUCT, (string) $productId)
-                    ->withField(self::QTY, $quantity, $now);
+        $quantities = [];
+        foreach ($items as $productId => $quantity) {
+            if (is_int($productId) && $productId > 0 && is_numeric($quantity)) {
+                $quantities[$productId] = $quantity;
             }
         }
 
-        return $changes;
+        return $quantities;
+    }
+
+    /**
+     * The connection the stock writes through, or null when it has none
+     *
+     * @param Stock $subject
+     * @return AdapterInterface|null
+     */
+    private function connection(Stock $subject): ?AdapterInterface
+    {
+        $connection = $subject->getConnection();
+
+        return $connection instanceof AdapterInterface ? $connection : null;
     }
 }

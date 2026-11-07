@@ -392,14 +392,21 @@
             <argument name="labelPattern" xsi:type="string">%1$s %2$s</argument>
         </arguments>
     </virtualType>
-    <!-- A store without sources corrects quantities of sales, cancellations and returns with one query -->
+    <!-- The stock corrects quantities of sales, cancellations and returns with one query, past the stock item model.
+         The stock resource is built by many requests that never correct anything: the recording is built on the first
+         correction. -->
     <type name="Magento\CatalogInventory\Model\ResourceModel\Stock">
         <plugin name="hryvinskyi_admin_action_log_stock_correction" type="Hryvinskyi\AdminActionLog\Plugin\CatalogInventory\RecordStockCorrection"/>
     </type>
     <type name="Hryvinskyi\AdminActionLog\Plugin\CatalogInventory\RecordStockCorrection">
         <arguments>
-            <argument name="recorder" xsi:type="object">Hryvinskyi\AdminActionLog\Api\EntityChangeRecorderInterface\Proxy</argument>
+            <argument name="changes" xsi:type="object">Hryvinskyi\AdminActionLog\Model\EntityChange\StockItem\StockRowChanges\Proxy</argument>
         </arguments>
+    </type>
+    <!-- A product import writes the stock item rows of a batch with one query, past the stock item model. A high sort
+         order keeps the plugin next to that write: what other plugins of the importer write afterwards is outside it. -->
+    <type name="Magento\CatalogImportExport\Model\StockItemImporterInterface">
+        <plugin name="hryvinskyi_admin_action_log_stock_import" type="Hryvinskyi\AdminActionLog\Plugin\CatalogImportExport\RecordStockImport" sortOrder="1000"/>
     </type>
     <type name="Hryvinskyi\AdminActionLog\Model\EntityChange\EntityChangeJournal">
         <arguments>
