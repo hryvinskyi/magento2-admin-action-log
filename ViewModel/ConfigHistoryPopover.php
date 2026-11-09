@@ -123,6 +123,7 @@ class ConfigHistoryPopover implements ArgumentInterface
             'buttonOne' => (string) __('%1 change · last %2 by %3'),
             'buttonMany' => (string) __('%1 changes · last %2 by %3'),
             'buttonNever' => (string) __('Never changed since logging started'),
+            'cutNote' => (string) __('Only the first 4,000 characters of each value are shown.'),
         ];
     }
 }

@@ -8,11 +8,13 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {load} = require('./amd.cjs');
+const {load, activityLogTestHelper} = require('./amd.cjs');
+const {FakeDocument, builder, fire} = activityLogTestHelper('dom-fake.cjs');
 
 const model = load('config-history/history-model');
 const placement = load('config-history/placement');
 const keepEnabled = load('config-history/keep-enabled');
+const mountPopover = load('config-history/popover');
 const grammar = load('Hryvinskyi_ActivityLog/js/search/grammar');
 const request = load('Hryvinskyi_ActivityLog/js/search/request');
 const zone = load('Hryvinskyi_ActivityLog/js/search/zone').create('Europe/Copenhagen', 'en_US');
@@ -24,6 +26,7 @@ const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value);
 const relative = (ms) => Math.round((NOW - ms) / DAY) + ' days ago';
 // Objects made inside the loaded modules come from another realm: compare their data, not their prototypes
 const plain = (value) => JSON.parse(JSON.stringify(value));
+const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 const WORDING = {
     title: 'History · %1',
@@ -38,7 +41,8 @@ const WORDING = {
     never: 'Never changed since logging started. The value is the system default.',
     buttonOne: '%1 change · last %2 by %3',
     buttonMany: '%1 changes · last %2 by %3',
-    buttonNever: 'Never changed since logging started'
+    buttonNever: 'Never changed since logging started',
+    cutNote: 'Only the first 4,000 characters of each value are shown.'
 };
 
 /**
@@ -264,7 +268,9 @@ test('rows show when, who with the client a person acted through, the scope and 
         channel: 'entity',
         scope: 'Main Website',
         before: {text: 'No', kind: 'value'},
-        after: {text: 'Yes', kind: 'value'}
+        after: {text: 'Yes', kind: 'value'},
+        split: null,
+        truncated: false
     });
     assert.deepEqual([rows[1].via, rows[1].scope, rows[1].before, rows[1].after], [
         null,
@@ -288,6 +294,73 @@ test('a masked value stays masked, and an activity without a detail shows no val
         {text: '••••••', kind: 'masked'}
     ]);
     assert.deepEqual([rows[1].scope, rows[1].before, rows[1].after], [null, null, null]);
+});
+
+/**
+ * The changed lines of a split diff: each changed row's before and after text, a missing side as null
+ *
+ * @param {Object} split As model/split-diff's split() gives it
+ * @returns {Array<Array<?string>>}
+ */
+function changedLines(split) {
+    const text = (side) => (side === null ? null : side.parts.map((part) => part.text).join(''));
+
+    return split.rows
+        .filter((row) => row.type === 'line' && (row.before === null || row.after === null || row.before.op !== 'equal'))
+        .map((row) => [text(row.before), text(row.after)]);
+}
+
+test('a long value carries the split diff of its raw before and after; a short, masked or JSON list value carries none', () => {
+    const lines = Array.from({length: 12}, (unused, index) => 'line ' + (index + 1));
+    const long = field({
+        name: 'design/head/includes',
+        kind: 'long',
+        before: lines.join('\n'),
+        after: lines.map((line) => (line === 'line 6' ? 'line six' : line)).join('\n')
+    });
+    const rows = plain(model.rows(page([
+        event(1, [long]),
+        event(2, [field()]),
+        event(3, [field({kind: 'masked', before: '••••••', after: '••••••'})]),
+        event(4, [field({kind: 'json', before: '["a","b"]', after: '["a","c"]'})]),
+        event(5, [field({kind: 'json', before: '{"a":1}', after: '{"a":2}'})]),
+        event(6, [field({kind: 'long', before: null, after: 'first\nsecond\nthird\nfourth'})])
+    ], null), 'carriers/freeshipping/active', {zone: zone, relative: relative, emptyWord: '(empty)'}));
+
+    assert.equal(rows[0].split.changes, 1);
+    assert.deepEqual(changedLines(rows[0].split), [['line 6', 'line six']], 'The changed line, paired');
+    assert.deepEqual(rows[0].split.rows.map((row) => row.type), ['fold', 'line', 'line', 'line', 'line', 'line', 'line',
+        'line', 'fold'], 'Unchanged stretches folded, three lines of context kept on each side');
+    assert.deepEqual([rows[0].before.text, rows[0].after.kind], [long.before, 'value'], 'Before and after stay');
+    assert.deepEqual([rows[1].split, rows[2].split, rows[3].split], [null, null, null]);
+    assert.deepEqual(changedLines(rows[4].split), [['{"a":1}', '{"a":2}']], 'A JSON value that is not a list is long text');
+    assert.deepEqual(changedLines(rows[5].split), [
+        [null, 'first'], [null, 'second'], [null, 'third'], [null, 'fourth']
+    ], 'A missing value is no lines, never "(empty)"');
+});
+
+test('a row says whether the search cut the setting\'s values, and a row without the setting says it did not', () => {
+    const lines = Array.from({length: 12}, (unused, index) => 'line ' + (index + 1));
+    const rows = plain(model.rows(page([
+        event(1, [field({kind: 'long', before: lines.join('\n'), after: lines.join('\n') + '\nline 13', truncated: true})]),
+        event(2, [field({truncated: true})]),
+        event(3, [field({name: 'other/path/x', truncated: true}), field()]),
+        Object.assign(event(4, []), {detail: null})
+    ], null), 'carriers/freeshipping/active', {zone: zone, relative: relative, emptyWord: '(empty)'}));
+
+    assert.deepEqual(rows.map((row) => row.truncated), [true, true, false, false],
+        'The flag of the setting\'s own field, not of another field of the same activity');
+});
+
+test('a long value that changed one word and every line ending shows that one line changed, and nothing for the endings', () => {
+    const rows = plain(model.rows(page([event(1, [field({
+        kind: 'long',
+        before: 'one\r\ntwo\r\nthree\r\nfour',
+        after: 'one\ntwo\nthirty\nfour'
+    })])], null), 'carriers/freeshipping/active', {zone: zone, relative: relative, emptyWord: '(empty)'}));
+
+    assert.equal(rows[0].split.changes, 1);
+    assert.deepEqual(changedLines(rows[0].split), [['three', 'thirty']]);
 });
 
 test('the popover goes just below the button, not below the row, from the value column, at most as wide as allowed, arrow on the button', () => {
@@ -438,4 +511,227 @@ test('nothing is observed without a button, or once the popover is gone', () => 
     keepEnabled.keep([button], FakeObserver, ended.signal);
     assert.equal(FakeObserver.last, null);
     assert.equal(button.disabled, true, 'An ended page is left as it is');
+});
+
+/**
+ * The timeline's config as its assets print it: every word it requires, the verbs, outcomes and one channel
+ *
+ * @returns {Object}
+ */
+function timelineConfig() {
+    const words = {};
+
+    load('Hryvinskyi_ActivityLog/js/timeline/config').WORDING.forEach((name) => {
+        words[name] = name;
+    });
+    Object.assign(words, {via: 'via', empty: '(empty)', loading: 'Loading…', foldLines: 'Show %1 unchanged lines',
+        noLine: 'No line', truncated: 'Only the start of the value is shown'});
+
+    return {
+        wording: words,
+        verbs: Object.fromEntries(request.VERBS.map((verb) => [verb, verb])),
+        channels: {entity: {label: 'Record change', bg: '#eee', fg: '#111'}},
+        actorTypes: {admin: 'Admin'},
+        outcomes: Object.fromEntries(request.OUTCOMES.map((outcome) => [outcome, outcome])),
+        candidateLimit: 10000
+    };
+}
+
+/**
+ * A window whose fetch the test answers; its timers never fire on their own
+ *
+ * @returns {Object}
+ */
+function fakeWindow() {
+    const fetches = [];
+
+    return {
+        fetches,
+        AbortController,
+        navigator: {},
+        setTimeout: () => 0,
+        clearTimeout: () => undefined,
+        addEventListener: () => undefined,
+        MutationObserver: FakeObserver,
+        fetch: (url, init) => new Promise((resolve, reject) => {
+            fetches.push({url, resolve});
+            init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    };
+}
+
+/**
+ * Stores › Configuration with one setting and its history button, the timeline's assets and the popover's config and
+ * templates as the layout prints them, the popover mounted
+ *
+ * @returns {{doc: FakeDocument, win: Object, button: Object}}
+ */
+function configPage() {
+    const doc = new FakeDocument();
+    const win = fakeWindow();
+    const el = builder(doc);
+    const slot = (tag, name, attrs = {}, children = []) => el(tag, Object.assign({'data-slot': name}, attrs), children);
+    const box = (element, rect) => Object.assign(element, {getBoundingClientRect: () => rect});
+    const button = box(el('button', {
+        type: 'button',
+        'data-role': 'config-history-open',
+        'data-path': 'carriers/freeshipping/active',
+        'data-label': 'Enabled',
+        'data-changes': '2',
+        'data-latest-ms': String(NOW - DAY),
+        'data-latest-actor': 'john'
+    }), {left: 820, width: 30, bottom: 350});
+    const column = box(el('td', {className: 'value'}, [button]), {left: 500});
+    const assets = load('Hryvinskyi_ActivityLog/js/timeline/assets').TEMPLATES.map((name) => el('template',
+        {'data-template': name}, [el('div')]));
+
+    doc.defaultView = win;
+    Object.assign(doc.body, {scrollLeft: 0, scrollTop: 0, clientLeft: 0, clientTop: 0});
+    box(doc.body, {left: 0, top: 0});
+    doc.body.appendChild(el('table', {}, [box(el('tr', {}, [column]), {bottom: 400, right: 1300})]));
+    doc.body.appendChild(el('div', {'data-role': 'activity-timeline-assets', hidden: true}, [
+        el('script', {'data-role': 'activity-timeline-config', text: JSON.stringify(timelineConfig())})
+    ].concat(assets)));
+    const root = el('div', {'data-role': 'config-history', hidden: true}, [
+        el('script', {'data-role': 'config-history-config', text: JSON.stringify(rawConfig())}),
+        el('template', {'data-template': 'config-history-popover'}, [
+            el('div', {className: 'config-history-popover', role: 'dialog'}, [
+                slot('span', 'arrow'),
+                slot('div', 'title'),
+                slot('span', 'path'),
+                el('button', {type: 'button', 'data-action': 'copy'}, [slot('span', 'copy-label')]),
+                slot('span', 'count'),
+                el('button', {type: 'button', 'data-action': 'close'}),
+                slot('div', 'state', {hidden: true}, [
+                    slot('span', 'state-text'),
+                    el('button', {type: 'button', 'data-action': 'retry', hidden: true})
+                ]),
+                slot('div', 'rows'),
+                slot('a', 'log-link', {href: '#'})
+            ])
+        ]),
+        el('template', {'data-template': 'config-history-row'}, [
+            el('div', {className: 'config-history-row'}, [
+                slot('div', 'when'),
+                slot('div', 'ago'),
+                slot('div', 'who'),
+                slot('div', 'values', {className: 'config-history-row__values'}, [
+                    slot('span', 'before', {className: 'config-history-row__value'}),
+                    el('span', {className: 'config-history-row__arrow', text: '→'}),
+                    slot('span', 'after', {className: 'config-history-row__value'})
+                ])
+            ])
+        ])
+    ]);
+    doc.body.appendChild(root);
+    mountPopover({}, root);
+
+    return {doc, win, button};
+}
+
+/**
+ * Opens the popover and answers its search with the given activities
+ *
+ * @param {{doc: FakeDocument, win: Object, button: Object}} page
+ * @param {Array<Object>} events As the search endpoint answers them
+ * @returns {Promise<Object>} The popover
+ */
+async function openWith(page, events) {
+    fire(page.button, 'click');
+    page.win.fetches[0].resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            events: events,
+            nextCursor: null,
+            narrowed: false,
+            total: {count: events.length, atLeast: false},
+            outside: null,
+            latestOutsideMs: null,
+            overall: null,
+            journalEmpty: false
+        })
+    });
+    await flush();
+
+    return page.doc.querySelector('.config-history-popover');
+}
+
+test('the popover draws a long value as a split diff in its values slot, and a short one as before → after', async () => {
+    const lines = Array.from({length: 12}, (unused, index) => 'line ' + (index + 1));
+    const page = configPage();
+    const popover = await openWith(page, [
+        event(1, [field({
+            kind: 'long',
+            before: lines.join('\n'),
+            after: lines.map((line) => (line === 'line 6' ? 'line six' : line)).join('\n')
+        })]),
+        event(2, [field()])
+    ]);
+    const [longRow, shortRow] = popover.querySelectorAll('.config-history-row');
+    const values = longRow.querySelector('[data-slot="values"]');
+    const table = values.querySelector('table.split-diff');
+
+    assert.ok(table, 'The long value is a split diff table');
+    assert.equal(values.classList.contains('config-history-row__values--split'), true);
+    assert.deepEqual(values.children.filter((child) => child !== table).map((child) => [child.hidden, child.textContent]),
+        [[true, ''], [true, '→'], [true, '']], 'Before → after is left empty and hidden');
+    assert.deepEqual(table.querySelectorAll('del').map((node) => node.textContent), ['6']);
+    assert.deepEqual(table.querySelectorAll('ins').map((node) => node.textContent), ['six']);
+    assert.deepEqual(table.querySelectorAll('[data-action="fold"]').map((node) => node.textContent),
+        ['Show 2 unchanged lines', 'Show 3 unchanged lines'], 'The fold wording comes from the timeline\'s');
+
+    assert.equal(shortRow.querySelector('table'), null);
+    assert.equal(shortRow.querySelector('[data-slot="values"]').classList.contains('config-history-row__values--split'),
+        false);
+    assert.deepEqual([
+        shortRow.querySelector('[data-slot="before"]').textContent,
+        shortRow.querySelector('[data-slot="after"]').textContent
+    ], ['No', 'Yes']);
+});
+
+test('a split diff of values the search cut says so in a line under its table; an uncut or short value says nothing', async () => {
+    const lines = Array.from({length: 12}, (unused, index) => 'line ' + (index + 1));
+    const long = {kind: 'long', before: lines.join('\n'), after: lines.map((line) => (line === 'line 6' ? 'line six' : line)).join('\n')};
+    const page = configPage();
+    const popover = await openWith(page, [
+        event(1, [field(Object.assign({truncated: true}, long))]),
+        event(2, [field(long)]),
+        event(3, [field({truncated: true})])
+    ]);
+    const [cut, whole, short] = popover.querySelectorAll('.config-history-row');
+    const values = cut.querySelector('[data-slot="values"]');
+    const notes = values.querySelectorAll('.config-history-row__note');
+
+    assert.deepEqual(notes.map((note) => note.textContent), ['Only the first 4,000 characters of each value are shown.'],
+        'The popover\'s own sentence for a value the search cut');
+    assert.equal(values.children[values.children.length - 1], notes[0], 'The note comes after the table');
+    assert.ok(values.children.indexOf(values.querySelector('table.split-diff')) < values.children.indexOf(notes[0]));
+    assert.equal(whole.querySelector('.config-history-row__note'), null);
+    assert.equal(short.querySelector('.config-history-row__note'), null, 'Only a split diff carries the note');
+});
+
+test('opening a fold in the popover shows its lines and leaves the popover open; a click outside still closes it', async () => {
+    const lines = Array.from({length: 12}, (unused, index) => 'line ' + (index + 1));
+    const page = configPage();
+    const popover = await openWith(page, [event(1, [field({
+        kind: 'long',
+        before: lines.join('\n'),
+        after: lines.map((line) => (line === 'line 6' ? 'line six' : line)).join('\n')
+    })])]);
+    const fold = popover.querySelector('[data-action="fold"]');
+    const group = fold.closest('.split-diff__fold-group');
+
+    fire(fold, 'click');
+
+    assert.equal(page.doc.body.contains(popover), true, 'The popover stays open');
+    assert.equal(popover.contains(fold), true, 'The fold\'s button is still inside it, hidden with its row');
+    assert.equal(fold.closest('.split-diff__fold').hidden, true);
+    assert.deepEqual(group.children.slice(1).map((row) => [row.hidden, row.textContent]),
+        [[false, '1line 11line 1'], [false, '2line 22line 2']]);
+    assert.equal(page.doc.activeElement, group.children[1], 'The focus moves to the first line shown');
+
+    fire(page.doc.body, 'click');
+
+    assert.equal(page.doc.body.contains(popover), false, 'A click outside closes it');
 });

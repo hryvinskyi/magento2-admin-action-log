@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-11-09
+
+### Added
+- The activity detail page links the entity change's subject to the record's edit page when the admin may open that
+  page and the record still exists; otherwise the subject stays plain text.
+
+### Changed
+- On the activity detail page, a changed long value that is neither masked nor a JSON list is shown as a split diff:
+  numbered lines side by side, removed lines light red and added ones light green, the words that changed in a darker
+  shade, and long unchanged stretches folded behind a "Show N unchanged lines" button. The server prints the two
+  values as JSON beside the row, exactly as they were stored. Without JavaScript the row keeps its red and green
+  blocks. The diff and its table come from hryvinskyi/magento2-activity-log's published split diff modules and layout
+  handle.
+- The settings history popover on Stores › Configuration shows a long value the way the activity timeline does, as
+  a split diff across the change's row, in place of the red and green before → after blocks. Short, masked and JSON
+  list values are shown as before. When the search cut the values, a line under the split diff says that only
+  their first 4,000 characters are shown. The popover now takes the document and window it works with from the element it is mounted on.
+- Requires hryvinskyi/magento2-activity-log ^1.4.
+
 ## [1.4.1] - 2026-11-07
 
 ### Changed

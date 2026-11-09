@@ -29,8 +29,8 @@ use Magento\User\Model\User;
 /**
  * Each setting's history on Stores › Configuration, through the real admin stack: the count of changes per config
  * path from one grouped query per section page, the button after each setting's control with its count, its newest
- * change and the recent-change mark, the popover's config and the timeline's assets — and nothing of it, not even
- * the count, for an admin who may not read the activity log
+ * change and the recent-change mark, the popover's config, the timeline's assets and the split diff table's
+ * stylesheet — and nothing of it, not even the count, for an admin who may not read the activity log
  *
  * Changes are written straight to the journal and the change tables, at times relative to now: the recorder writes
  * them only after a save's transaction commits, which never happens inside a test's transaction.
@@ -45,6 +45,7 @@ class ConfigHistoryTest extends AbstractBackendController
     private const ENABLED = 'hryvinskyi_admin_action_log/admin/enabled';
     private const RETENTION = 'hryvinskyi_admin_action_log/admin/retention_days';
     private const GET_REQUESTS = 'hryvinskyi_admin_action_log/admin/log_get_requests';
+    private const SPLIT_DIFF_STYLESHEET = '~<link[^>]+href="[^"]*/Hryvinskyi_ActivityLog/css/split-diff\\.css"~';
 
     /**
      * The page the inherited access tests open, the section of this module's own settings, needs the configuration
@@ -161,6 +162,11 @@ class ConfigHistoryTest extends AbstractBackendController
         self::assertIsString($config['searchUrl'] ?? null);
         self::assertStringContainsString('/activitylog/activity/search/', $config['searchUrl']);
         self::assertStringContainsString('data-role="activity-timeline-assets"', $body);
+        self::assertMatchesRegularExpression(
+            self::SPLIT_DIFF_STYLESHEET,
+            $body,
+            'The popover draws long values with the split diff table, so the page has its stylesheet'
+        );
     }
 
     public function testASectionWithManyChangedSettingsCostsTheSameQueriesAsOneWithOne(): void
@@ -215,6 +221,7 @@ class ConfigHistoryTest extends AbstractBackendController
         self::assertSame([], $this->buttons($body));
         self::assertStringNotContainsString('config-history', $body);
         self::assertStringNotContainsString('activity-timeline-assets', $body);
+        self::assertDoesNotMatchRegularExpression(self::SPLIT_DIFF_STYLESHEET, $body);
         self::assertSame(0, $this->groupedCounts($queries), 'Nothing is counted');
     }
 

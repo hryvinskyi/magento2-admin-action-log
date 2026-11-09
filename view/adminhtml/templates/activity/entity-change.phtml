@@ -12,6 +12,11 @@ use Magento\Framework\Escaper;
 use Magento\Framework\View\Element\Template;
 
 /**
+ * A field row whose changed value is of the kind long carries data-split and a JSON block of its two values: the
+ * page's script draws it as a split diff from that block, which holds each value exactly as it was stored, never from
+ * the cells' text, which the browser's HTML parser has already changed. The JSON is printed with tags hex-escaped, so
+ * a stored value can neither end the script element nor be read as markup. The cells stay as the view without script.
+ *
  * @var Template $block
  * @var Escaper $escaper
  */
@@ -23,10 +28,17 @@ if (!$panel instanceof EntityChangePanel) {
 $change = $panel->change();
 ?>
 <section class="activity-section admin-action-panel"
+         data-fold-label="<?= $escaper->escapeHtmlAttr(__('Show %1 unchanged lines')) ?>"
+         data-filler-label="<?= $escaper->escapeHtmlAttr(__('No line')) ?>"
          data-mage-init='{"Hryvinskyi_AdminActionLog/js/view/entity-diff": {}}'>
     <div class="activity-section__header">
         <span class="activity-section__title"><?= $escaper->escapeHtml(__('Entity change')) ?></span>
-        <?php if ($change !== null && $change['subject'] !== ''): ?>
+        <?php if ($change !== null && $change['link'] !== null): ?>
+            <a class="activity-section__note admin-action-diff__record"
+               href="<?= $escaper->escapeUrl($change['link']) ?>"><?=
+                $escaper->escapeHtml($change['subject'] !== '' ? $change['subject'] : __('Open the record'))
+                ?></a>
+        <?php elseif ($change !== null && $change['subject'] !== ''): ?>
             <span class="activity-section__note"><?= $escaper->escapeHtml($change['subject']) ?></span>
         <?php endif; ?>
     </div>
@@ -85,6 +97,7 @@ $change = $panel->change();
                     <tr data-role="field-row"
                         data-field="<?= $escaper->escapeHtmlAttr($field['field']) ?>"
                         data-changed="<?= $field['changed'] ? '1' : '0' ?>"
+                        <?php if ($field['split']): ?>data-split="1"<?php endif; ?>
                         class="admin-action-diff__row<?= $field['changed'] ? '' : ' is-unchanged' ?>">
                         <th scope="row" class="activity-mono">
                             <?= $escaper->escapeHtml($field['field']) ?>
@@ -97,6 +110,11 @@ $change = $panel->change();
                                       title="<?= $escaper->escapeHtmlAttr($automaticNote) ?>">
                                     <?= $escaper->escapeHtml(__('set automatically')) ?>
                                 </span>
+                            <?php endif; ?>
+                            <?php if ($field['split']): ?>
+                                <script type="application/json" data-role="split-values"><?=
+                                    /* @noEscape */ $field['splitValues']
+                                ?></script>
                             <?php endif; ?>
                         </th>
                         <?php foreach (['before', 'after'] as $side): ?>

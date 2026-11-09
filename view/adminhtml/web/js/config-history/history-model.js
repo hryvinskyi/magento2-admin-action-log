@@ -11,22 +11,25 @@
  * A setting's history is what the activity log page finds for "config: <path>" — the exact path, never a longer
  * sibling — over all time, in every scope, newest first, up to the printed limit. Each row shows when, who (with the
  * client and channel a person acted through), the channel, the scope, and the value before → after as the admin sees
- * it; a masked value stays masked, a missing one reads "(empty)". "Open in Activity Log" opens the log page on the
- * same path over the last 30 days.
+ * it; a masked value stays masked, a missing one reads "(empty)". A value the activity timeline draws as long text
+ * (search/sentence.js decides which) also carries the split diff of its raw before and after, and every row says
+ * whether the search cut the values it holds. "Open in Activity Log" opens the log page on the same path over the last
+ * 30 days.
  *
  * Pure: the clock's time, the timezone (search/zone.js) and the number and time writers are passed in.
  */
 define([
     'Hryvinskyi_ActivityLog/js/search/grammar',
+    'Hryvinskyi_ActivityLog/js/search/sentence',
     'Hryvinskyi_ActivityLog/js/search/wording'
-], function (grammar, wording) {
+], function (grammar, sentence, wording) {
     'use strict';
 
     var KEY = 'config',
         LINK_RANGE = '30d',
         MAX_LIMIT = 200,
         WORDS = Object.freeze(['title', 'copy', 'copied', 'changesOne', 'changesMany', 'noChanges', 'atLeast',
-            'countLine', 'neverSince', 'never', 'buttonOne', 'buttonMany', 'buttonNever']);
+            'countLine', 'neverSince', 'never', 'buttonOne', 'buttonMany', 'buttonNever', 'cutNote']);
 
     /**
      * @param {string} message
@@ -261,6 +264,26 @@ define([
     }
 
     /**
+     * The split diff the activity timeline draws for the field, or null when it draws the field another way (a short
+     * value, the items of a JSON list, a masked secret)
+     *
+     * The timeline's sentence of the activity, narrowed to this one field, decides; so a value reads the same in the
+     * popover as on the timeline, and the diff is only worked out for the field shown.
+     *
+     * @param {Object} event As search/request.js parses it, with a detail
+     * @param {Object} field One of its field rows
+     * @returns {?Object} What model/split-diff's split() returns for the field's before and after
+     */
+    function splitOf(event, field) {
+        var built = sentence.build(Object.assign({}, event, {
+                detail: Object.assign({}, event.detail, {fields: [field]})
+            })),
+            row = built.rows.concat(built.unchanged.rows)[0];
+
+        return row !== undefined && row.view.type === 'long' ? row.view.split : null;
+    }
+
+    /**
      * The popover's rows for a page of the setting's changes, newest first
      *
      * @param {{events: Array<Object>}} page As search/request.js parses it
@@ -268,7 +291,9 @@ define([
      * @param {{zone: {format: function(number, string): string}, relative: function(number): string,
      *     emptyWord: string}} context
      * @returns {Array<Object>} {id, when, ago, actor, via: ?{channel: ?string, client: string}, channel, scope,
-     *     before: ?{text, kind}, after: ?{text, kind}}
+     *     before: ?{text, kind}, after: ?{text, kind}, split: ?Object, truncated: boolean} split: the split diff
+     *     (model/split-diff's split()) of a value drawn as long text, else null; before and after are kept either way;
+     *     truncated: whether the search cut the setting's values, so the row shows only their start
      */
     function rows(page, path, context) {
         return page.events.map(function (event) {
@@ -286,7 +311,9 @@ define([
                 channel: event.channel,
                 scope: field === null ? null : field.scope,
                 before: field === null ? null : valueOf(field.before, masked, context.emptyWord),
-                after: field === null ? null : valueOf(field.after, masked, context.emptyWord)
+                after: field === null ? null : valueOf(field.after, masked, context.emptyWord),
+                split: field === null ? null : splitOf(event, field),
+                truncated: field !== null && field.truncated
             });
         });
     }

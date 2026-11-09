@@ -5,11 +5,44 @@
  */
 
 /**
- * The entity diff panel: filters rows by field name, shows unchanged rows on request, keeps each scope's row count
- * current and expands clipped values. Wording comes from the markup.
+ * The entity diff panel: draws long changed values as split diffs and opens their folds, filters rows by field name,
+ * shows unchanged rows on request, keeps each scope's row count current and expands clipped values. Wording comes
+ * from the markup.
  */
-define(['Hryvinskyi_AdminActionLog/js/model/field-filter'], function (fieldFilter) {
+define([
+    'Hryvinskyi_AdminActionLog/js/model/field-filter',
+    'Hryvinskyi_AdminActionLog/js/view/split-rows',
+    'Hryvinskyi_ActivityLog/js/view/split-diff'
+], function (fieldFilter, splitRows, splitDiffView) {
     'use strict';
+
+    /**
+     * What a click on each of the panel's controls does, by the control's selector: a fold of a split diff opens, a
+     * clipped value expands or collapses
+     */
+    var CONTROLS = Object.freeze([
+        Object.freeze({selector: '[data-action="fold"]', run: splitDiffView.expand}),
+        Object.freeze({selector: '[data-role="expand"]', run: toggleClipped})
+    ]);
+
+    /**
+     * Expands or collapses a clipped value, and swaps the button's label to match
+     *
+     * @param {HTMLElement} button
+     */
+    function toggleClipped(button) {
+        var row = button.closest('tr'),
+            expanded;
+
+        if (!row) {
+            return;
+        }
+        expanded = row.classList.toggle('is-expanded');
+        if (!button.hasAttribute('data-expand-label')) {
+            button.setAttribute('data-expand-label', button.textContent || '');
+        }
+        button.textContent = button.getAttribute(expanded ? 'data-collapse-label' : 'data-expand-label') || '';
+    }
 
     /**
      * @param {Object} config
@@ -68,19 +101,16 @@ define(['Hryvinskyi_AdminActionLog/js/model/field-filter'], function (fieldFilte
         }
 
         element.addEventListener('click', function (event) {
-            var button = event.target instanceof Element ? event.target.closest('[data-role="expand"]') : null,
-                row = button ? button.closest('tr') : null,
-                expanded;
+            CONTROLS.some(function (control) {
+                var target = event.target.closest(control.selector);
 
-            if (!button || !row) {
-                return;
-            }
+                if (target === null || !element.contains(target)) {
+                    return false;
+                }
+                control.run(target);
 
-            expanded = row.classList.toggle('is-expanded');
-            if (!button.hasAttribute('data-expand-label')) {
-                button.setAttribute('data-expand-label', button.textContent || '');
-            }
-            button.textContent = button.getAttribute(expanded ? 'data-collapse-label' : 'data-expand-label') || '';
+                return true;
+            });
         });
 
         if (filter) {
@@ -90,6 +120,7 @@ define(['Hryvinskyi_AdminActionLog/js/model/field-filter'], function (fieldFilte
             toggle.addEventListener('change', apply);
         }
 
+        splitRows.draw(element);
         apply();
     };
 });

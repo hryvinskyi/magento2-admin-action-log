@@ -182,7 +182,7 @@
 }
 
 .admin-action-diff thead th + th,
-.admin-action-diff__row td {
+.admin-action-diff__row > td {
     border-left: 1px dashed #d6d6d6;
 }
 
@@ -202,21 +202,26 @@
     color: #303030;
 }
 
-.admin-action-diff__row th,
-.admin-action-diff__row td {
+.admin-action-diff__row > th,
+.admin-action-diff__row > td {
     padding: 8px 10px;
     border-bottom: 1px solid #e3e3e3;
     vertical-align: top;
 }
 
-.admin-action-diff__row th {
+/* A split diff table sits inside the cell that spans Before and After */
+.admin-action-diff__row > .admin-action-diff__split {
+    padding: 8px 10px 10px;
+}
+
+.admin-action-diff__row > th {
     font-size: 12.5px;
     font-weight: 400;
     text-align: left;
     word-break: break-all;
 }
 
-.admin-action-diff__row.is-unchanged th,
+.admin-action-diff__row.is-unchanged > th,
 .admin-action-diff__row.is-unchanged .admin-action-value {
     color: #6b6b6b;
 }
@@ -267,6 +272,16 @@
     font: inherit;
     font-size: 12px;
     cursor: pointer;
+}
+
+.admin-action-diff__record {
+    color: #007bdb;
+    text-decoration: none;
+}
+
+.admin-action-diff__record:hover,
+.admin-action-diff__record:focus-visible {
+    text-decoration: underline;
 }
 
 .admin-action-diff__expand:hover,

@@ -28,7 +28,10 @@ the store's main entities with the value of each field before and after.
     - store views and websites.
   - Encrypted configuration values are never stored in clear text.
 - **Detail panels.** The Activity Log detail page shows an admin request panel and an entity change panel. The change
-  panel shows fields grouped by scope.
+  panel shows fields grouped by scope, and its subject links to the record's edit page when the admin may open that
+  page and the record still exists. A changed long value (over 160 characters or with three line breaks, neither
+  masked nor a JSON list) is shown as a split diff: numbered lines side by side, removed lines red and added ones green, the changed words
+  darker, unchanged stretches folded with three lines of context. Other values show before and after as they are.
 - **Menu.** The Activity Log menu gets "Admin requests" and "Entity changes" under Logs, which open the search page on
   the `admin` and `entity` channels, and "Admin logging" under Settings, which opens this module's settings.
 - **Search keys.** Entity changes answer keys on the Activity Log search page (see below).
@@ -196,6 +199,11 @@ These changes stay in the log and are marked **set automatically**.
   controls, but not the icon, because the history of an inherited setting is still worth opening.
 - The icon opens a popover with the history of the setting in all scopes: when, who (with the client and channel), the
   scope, and the value before and after. It has Copy for the config path and "Open in Activity Log".
+- A long value (a script, a robots.txt, a JSON value that is not a list) is shown as on the activity timeline: a
+  split diff across the row, with numbered lines side by side, the changed words in a darker shade and long unchanged
+  stretches folded behind "Show N unchanged lines". Opening a fold keeps the popover open. A masked value is never
+  shown this way. The search sends at most the first 4,000 characters of a value; a split diff of values cut there
+  says so in a line under it.
 - A setting that never changed since logging started says so.
 
 An admin without `Hryvinskyi_ActivityLog::view` sees none of this: no button, no panel, no icon, and no queries run.

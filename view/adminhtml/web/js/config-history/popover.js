@@ -15,6 +15,11 @@
  * the search in flight, and an answer for a popover no longer open is ignored. Every request has a deadline;
  * mounting is once per element. A button stays usable while its setting inherits its value, though the scope toggle
  * disables the rest of the setting's controls (config-history/keep-enabled.js).
+ *
+ * A value the activity timeline draws as long text is drawn the same way here, as a split diff below the row's who and
+ * when (view/split-diff.js), with the timeline's note under it when the search cut the values; its fold buttons open in
+ * place and leave the popover open. Everything the popover touches is taken from the page its root is in: that page's
+ * document and window.
  */
 define([
     'Hryvinskyi_ActivityLog/js/search/clock',
@@ -23,10 +28,12 @@ define([
     'Hryvinskyi_ActivityLog/js/search/wording',
     'Hryvinskyi_ActivityLog/js/timeline/assets',
     'Hryvinskyi_ActivityLog/js/timeline/search-client',
+    'Hryvinskyi_ActivityLog/js/view/split-diff',
     'Hryvinskyi_AdminActionLog/js/config-history/history-model',
     'Hryvinskyi_AdminActionLog/js/config-history/keep-enabled',
     'Hryvinskyi_AdminActionLog/js/config-history/placement'
-], function (clockModule, zoneModule, days, wording, timelineAssets, searchClient, model, keepEnabled, placement) {
+], function (clockModule, zoneModule, days, wording, timelineAssets, searchClient, splitDiffView, model, keepEnabled,
+    placement) {
     'use strict';
 
     var BUTTON = '[data-role="config-history-open"]',
@@ -47,9 +54,11 @@ define([
      * @returns {Function} Unmount
      */
     function mount(root) {
-        var script = root.querySelector('script[data-role="config-history-config"]'),
+        var doc = root.ownerDocument,
+            win = doc.defaultView,
+            script = root.querySelector('script[data-role="config-history-config"]'),
             config = model.parseConfig(JSON.parse(script ? script.textContent : 'null')),
-            shared = timelineAssets.read(document).config,
+            shared = timelineAssets.read(doc).config,
             words = config.wording,
             lifetime = new AbortController(),
             signal = lifetime.signal,
@@ -58,7 +67,7 @@ define([
             tag = config.locale.replace(/_/g, '-'),
             numbers = new Intl.NumberFormat(tag),
             relativeTime = new Intl.RelativeTimeFormat(tag, {numeric: 'auto'}),
-            client = searchClient.create(config.searchUrl, config.timeoutMs, window),
+            client = searchClient.create(config.searchUrl, config.timeoutMs, win),
             templates = {
                 popover: root.querySelector('template[data-template="config-history-popover"]'),
                 row: root.querySelector('template[data-template="config-history-row"]')
@@ -69,6 +78,9 @@ define([
                     close(true);
                 },
                 copy: copy,
+                fold: function (button) {
+                    splitDiffView.expand(button);
+                },
                 retry: load
             });
 
@@ -114,7 +126,7 @@ define([
          * @returns {HTMLElement}
          */
         function element(tagName, className, text) {
-            var node = document.createElement(tagName);
+            var node = doc.createElement(tagName);
 
             node.className = className;
             node.textContent = text;
@@ -166,6 +178,31 @@ define([
         }
 
         /**
+         * Shows a value drawn as long text as its split diff, in place of "before → after", across the whole row; when
+         * the search cut the values, a line under the table says so in the timeline's words, since a diff of cut texts
+         * can show a change at the cut that is not there, or miss one past it
+         *
+         * @param {HTMLElement} values The row's values slot
+         * @param {Object} split As model/split-diff's split() gives it
+         * @param {boolean} truncated Whether the search cut the values
+         */
+        function paintSplit(values, split, truncated) {
+            Array.prototype.forEach.call(values.children, function (child) {
+                child.hidden = true;
+            });
+            values.classList.add('config-history-row__values--split');
+            values.appendChild(splitDiffView.render(
+                doc,
+                split,
+                {fold: shared.wording.foldLines, filler: shared.wording.noLine},
+                {formatNumber: formatNumber}
+            ));
+            if (truncated) {
+                values.appendChild(element('p', 'config-history-row__note', words.cutNote));
+            }
+        }
+
+        /**
          * @param {Object} row As history-model.rows gives it
          * @returns {HTMLElement}
          */
@@ -190,6 +227,8 @@ define([
             }
             if (row.before === null) {
                 slot(node, 'values').hidden = true;
+            } else if (row.split !== null) {
+                paintSplit(slot(node, 'values'), row.split, row.truncated);
             } else {
                 paintValue(row.before, slot(node, 'before'));
                 paintValue(row.after, slot(node, 'after'));
@@ -217,7 +256,7 @@ define([
             var node = shown.node,
                 row = shown.button.closest('tr') || shown.button.parentNode,
                 column = shown.button.closest('td') || row,
-                parent = node.offsetParent || document.body,
+                parent = node.offsetParent || doc.body,
                 parentBox = parent.getBoundingClientRect(),
                 spot = placement.place(
                     row.getBoundingClientRect(),
@@ -291,10 +330,10 @@ define([
             if (closing.request !== null) {
                 closing.request.abort();
             }
-            window.clearTimeout(closing.copyTimer);
+            win.clearTimeout(closing.copyTimer);
             closing.node.remove();
             closing.button.setAttribute('aria-expanded', 'false');
-            if (returnFocus && document.contains(closing.button)) {
+            if (returnFocus && doc.contains(closing.button)) {
                 closing.button.focus();
             }
         }
@@ -305,21 +344,22 @@ define([
                 label = slot(current.node, 'copy-label'),
                 copied = function () {
                     label.textContent = words.copied;
-                    window.clearTimeout(current.copyTimer);
-                    current.copyTimer = window.setTimeout(function () {
+                    win.clearTimeout(current.copyTimer);
+                    current.copyTimer = win.setTimeout(function () {
                         label.textContent = words.copy;
                     }, COPIED_MS);
                 },
                 select = function () {
-                    window.getSelection().selectAllChildren(slot(current.node, 'path'));
-                };
+                    win.getSelection().selectAllChildren(slot(current.node, 'path'));
+                },
+                clipboard = win.navigator.clipboard;
 
-            if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+            if (!clipboard || typeof clipboard.writeText !== 'function') {
                 select();
 
                 return;
             }
-            navigator.clipboard.writeText(current.setting.path).then(copied, function (failure) {
+            clipboard.writeText(current.setting.path).then(copied, function (failure) {
                 warn(failure);
                 select();
             });
@@ -349,7 +389,7 @@ define([
                         : null;
 
                 if (typeof run === 'function') {
-                    run();
+                    run(action);
                 }
             });
 
@@ -361,8 +401,8 @@ define([
             load();
         }
 
-        keepEnabled.keep(Array.from(document.querySelectorAll(BUTTON)), window.MutationObserver, signal);
-        document.querySelectorAll(BUTTON).forEach(function (button) {
+        keepEnabled.keep(Array.from(doc.querySelectorAll(BUTTON)), win.MutationObserver, signal);
+        doc.querySelectorAll(BUTTON).forEach(function (button) {
             try {
                 button.setAttribute('title', model.buttonTitle(settingOf(button), words, formatNumber, relative));
             } catch (malformed) {
@@ -370,8 +410,8 @@ define([
             }
         });
 
-        document.addEventListener('click', function (event) {
-            var button = event.target instanceof Element ? event.target.closest(BUTTON) : null;
+        doc.addEventListener('click', function (event) {
+            var button = event.target.closest(BUTTON);
 
             if (button !== null) {
                 event.preventDefault();
@@ -384,17 +424,17 @@ define([
 
                 return;
             }
-            if (shown !== null && event.target instanceof Node && !shown.node.contains(event.target)) {
+            if (shown !== null && !shown.node.contains(event.target)) {
                 close(false);
             }
         }, {signal: signal});
-        document.addEventListener('keydown', function (event) {
+        doc.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && shown !== null) {
                 event.preventDefault();
                 close(true);
             }
         }, {signal: signal});
-        window.addEventListener('resize', function () {
+        win.addEventListener('resize', function () {
             if (shown !== null) {
                 place();
             }

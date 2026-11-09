@@ -17,10 +17,15 @@ use Hryvinskyi\ActivityLog\Api\Data\Search\ValueKind;
  * - masked: the values are secrets and are never shown;
  * - json: each side is a JSON list (a missing or empty side counts as an empty one), shown as items added,
  *   removed and kept;
- * - long: a side is over 160 characters or holds three line breaks, shown clipped until expanded;
+ * - long: a side is over 160 characters or holds three line breaks, shown as a split diff: the two values' lines side
+ *   by side, the changed ones marked and long unchanged stretches folded;
  * - short: anything else, shown inline.
  *
- * The activity detail page clips a value by the same length rule, so the two views never disagree on what is long.
+ * The activity detail page draws a split diff for exactly the changed values of the kind long, the rule the timeline
+ * and the settings history follow too. The one difference: those two get values the search cut at 4,000 characters,
+ * and a cut value is always shown as long text, so a JSON list longer than that is a split diff there and keeps its
+ * cells on the detail page. The cells, the view without script, clip any value over the same length rule until
+ * expanded, a JSON list included.
  */
 class ValueKinds
 {
@@ -49,7 +54,7 @@ class ValueKinds
     }
 
     /**
-     * Whether either value is long enough to be clipped until expanded
+     * Whether either value is over the length rule: 160 characters, or three line breaks
      *
      * @param string|null $before
      * @param string|null $after

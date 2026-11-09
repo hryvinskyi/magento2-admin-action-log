@@ -2,7 +2,7 @@
     "name": "hryvinskyi/magento2-admin-action-log",
     "description": "Records admin requests and entity changes (before and after, per field) into the activity log journal",
     "type": "magento2-module",
-    "version": "1.4.1",
+    "version": "1.5.0",
     "license": "MIT",
     "authors": [
         {
@@ -12,7 +12,7 @@
     ],
     "require": {
         "php": "^8.1",
-        "hryvinskyi/magento2-activity-log": "^1.3",
+        "hryvinskyi/magento2-activity-log": "^1.4",
         "hryvinskyi/magento2-base": "^2.3 || ^3.0",
         "hryvinskyi/magento2-configuration-fields": "^1.1",
         "magento/framework": "*",

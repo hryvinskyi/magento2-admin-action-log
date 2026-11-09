@@ -337,6 +337,23 @@
     display: none;
 }
 
+/* A long value's split diff takes the whole width of its row, below the time and the actor: the row's body steps
+   aside so the values become the row's own last line. The table draws itself. */
+.config-history-row:has(> .config-history-row__body > .config-history-row__values--split) > .config-history-row__body {
+    display: contents;
+}
+
+.config-history-row__values--split {
+    grid-column: 1 / -1;
+    margin-top: 0.8rem;
+}
+
+.config-history-row__note {
+    margin: 0.4rem 0 0;
+    color: #6b6b6b;
+    font-size: 1.15rem;
+}
+
 .config-history-row__value {
     display: inline;
     padding: 0.1rem 0.5rem;
